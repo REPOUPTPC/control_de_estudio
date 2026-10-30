@@ -37,7 +37,7 @@ $mostrar_campo_soporte = true;
 // Verificar disponibilidad de los trimestres para este período académico
 $disponibilidad_trimestres = [];
 for ($t = 1; $t <= 3; $t++) {
-    $disponibilidad_trimestres[$t] = verificarDisponibilidadTrimestre($t, $periodo_id);
+    $disponibilidad_trimestres[$t] = verificarDisponibilidadTrimestre($t, $periodo_id, $docente_id, $seccion_id, $materia_id);
 }
 $disponibilidad_json = json_encode($disponibilidad_trimestres);
 ?>
@@ -64,6 +64,15 @@ $disponibilidad_json = json_encode($disponibilidad_trimestres);
         <p class="mb-0">Trayecto <?= $trayecto_actual ?> | Periodo ID: <?= $periodo_id ?></p>
     </div>
     <div class="card-body">
+        
+        <?php foreach ($disponibilidad_trimestres as $tNum => $disp): ?>
+            <?php if (!empty($disp['prorroga'])): ?>
+            <div class="alert alert-warning border border-warning shadow-sm">
+                <i class="fas fa-clock mr-1"></i>
+                <strong>¡Prórroga de 24 Horas Habilitada por Control de Estudios!</strong> <?= htmlspecialchars($disp['mensaje']) ?>
+            </div>
+            <?php endif; ?>
+        <?php endforeach; ?>
         
         <?php if ($estados_notas['notas_aprobadas']): ?>
         <div class="alert alert-success">

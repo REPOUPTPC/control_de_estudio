@@ -45,12 +45,102 @@ $fechaSolicitud = date('Y-m-d');
 ?>
 
 <form id="<?php echo $formId; ?>" method="post" action="<?php echo $actionUrl; ?>" enctype="multipart/form-data">
+    <?php if ($modo_preinscripcion): ?>
+    <!-- Alerta de estudiante ya formalmente inscrito -->
+    <div id="avisoEstudianteInscrito<?php echo $prefijo; ?>" class="alert alert-danger py-2 px-3 mb-4 shadow-sm" style="display: none; border-left: 5px solid #dc3545;">
+        <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x mr-3 text-danger"></i>
+                <div>
+                    <strong>Esta cédula ya se encuentra formalmente inscrita como estudiante.</strong><br>
+                    <span class="small text-muted">No puede modificar la cédula ni enviar una preinscripción. Si ya es alumno regular, inicie sesión con sus credenciales.</span>
+                </div>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <a href="login.php" class="btn btn-sm btn-danger">
+                    <i class="fas fa-sign-in-alt mr-1"></i> Ir al Login
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerta de preinscripción anterior encontrada -->
+    <div id="avisoPreinscrito<?php echo $prefijo; ?>" class="alert alert-info py-2 px-3 mb-4 shadow-sm" style="display: none; border-left: 5px solid #0dcaf0;">
+        <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-user-check fa-2x mr-3 text-info"></i>
+                <div>
+                    <strong>¡Datos de preinscripción previa cargados!</strong><br>
+                    <span class="small text-muted">Por seguridad institucional, su <strong>cédula</strong>, <strong>nombre</strong> y <strong>fecha de nacimiento</strong> quedan protegidos y no pueden ser modificados. Los demás datos pueden ser actualizados.</span>
+                </div>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <button type="button" class="btn btn-sm btn-info" id="btnVerDetallePreinscrito<?php echo $prefijo; ?>" title="Ver aviso modal nuevamente">
+                    <i class="fas fa-info-circle mr-1"></i> Ver Aviso
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Estudiante Ya Inscrito (Bootstrap Modal Fallback) -->
+    <div class="modal fade" id="modalEstudianteInscrito<?php echo $prefijo; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title font-weight-bold"><i class="fas fa-exclamation-triangle mr-2"></i> Estudiante Ya Registrado</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="textoEstudianteInscrito<?php echo $prefijo; ?>">Esta cédula ya se encuentra formalmente inscrita como estudiante en el sistema.</p>
+                    <p class="text-muted small mb-0">Si usted ya es estudiante de la institución, debe iniciar sesión en el portal en lugar de preinscribirse.</p>
+                </div>
+                <div class="modal-footer">
+                    <a href="login.php" class="btn btn-primary"><i class="fas fa-sign-in-alt mr-1"></i> Iniciar Sesión</a>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Preinscripción Previa Encontrada (Bootstrap Modal Fallback) -->
+    <div class="modal fade" id="modalPreinscripcionPrevia<?php echo $prefijo; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title font-weight-bold"><i class="fas fa-info-circle mr-2"></i> Preinscripción Previa Encontrada</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Detectamos que ya se había preinscrito anteriormente a nombre de: <strong id="nombreModalPreinscrito<?php echo $prefijo; ?>"></strong> (<span id="cedulaModalPreinscrito<?php echo $prefijo; ?>"></span>).</p>
+                    <div class="alert alert-warning py-2 px-3 my-3" style="border-left: 4px solid #ffc107;">
+                        <strong><i class="fas fa-lock mr-1"></i> Datos protegidos por seguridad institucional:</strong><br>
+                        • Su <strong>Cédula</strong>, <strong>Nombre</strong> y <strong>Fecha de Nacimiento</strong> no pueden modificarse.
+                    </div>
+                    <p class="text-muted small mb-0">
+                        Todos los demás datos (carrera, turno, asignación OPSU, teléfonos, dirección, etc.) han sido cargados y puede actualizarlos libremente antes de formalizar.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-dismiss="modal"><i class="fas fa-check mr-1"></i> Continuar y Actualizar Datos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Sección 1: Identificación -->
     <h5 class="mb-3"><i class="fas fa-id-card mr-2"></i> Identificación</h5>
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <div class="mb-3">
-                <label for="cedula_completa<?php echo $prefijo; ?>" class="form-label required">Cédula</label>
+                <label for="cedula_completa<?php echo $prefijo; ?>" class="form-label required">
+                    Cédula
+                    <span id="badgeCedulaBloqueada<?php echo $prefijo; ?>" class="badge bg-secondary ms-2" style="display:none;"><i class="fas fa-lock"></i> Registrada</span>
+                </label>
                 <div class="input-group">
                     <select class="custom-select" id="tipo_cedula<?php echo $prefijo; ?>" name="tipo_cedula" style="max-width: 80px;">
                         <?php foreach ($tiposCedula as $tipo): ?>
@@ -63,6 +153,13 @@ $fechaSolicitud = date('Y-m-d');
                         <?php endforeach; ?>
                     </select>
                     <input type="text" class="form-control" id="numero_cedula<?php echo $prefijo; ?>" name="numero_cedula" placeholder="Ej: 12345678" required value="<?php echo htmlspecialchars($_POST['numero_cedula'] ?? ''); ?>">
+                    <?php if ($modo_preinscripcion): ?>
+                    <div class="input-group-append">
+                        <button type="button" class="btn btn-outline-primary" id="btnConsultarCedula<?php echo $prefijo; ?>" title="Verificar si posee una preinscripción previa">
+                            <i class="fas fa-search"></i> <span class="d-none d-sm-inline">Verificar</span>
+                        </button>
+                    </div>
+                    <?php endif; ?>
                     <input type="hidden" id="idusuario<?php echo $prefijo; ?>" name="idusuario" value="<?php echo htmlspecialchars($_POST['idusuario'] ?? ''); ?>">
                 </div>
                 <small class="text-muted">Formato: V-12345678 o E-12345678</small>
@@ -71,7 +168,10 @@ $fechaSolicitud = date('Y-m-d');
         
         <div class="col-md-6">
             <div class="mb-3">
-                <label for="nombre<?php echo $prefijo; ?>" class="form-label required">Apellidos y nombres</label>
+                <label for="nombre<?php echo $prefijo; ?>" class="form-label required">
+                    Apellidos y nombres
+                    <span id="badgeNombreBloqueado<?php echo $prefijo; ?>" class="badge bg-secondary ms-2" style="display:none;"><i class="fas fa-lock"></i> Registrado</span>
+                </label>
                 <input type="text" class="form-control" id="nombre<?php echo $prefijo; ?>" name="nombre" required value="<?php echo htmlspecialchars($_POST['nombre'] ?? ''); ?>">
             </div>
         </div>
@@ -94,7 +194,10 @@ $fechaSolicitud = date('Y-m-d');
             </div>
 
             <div class="mb-3">
-                <label for="fecha_nac<?php echo $prefijo; ?>" class="form-label required">Fecha de Nacimiento</label>
+                <label for="fecha_nac<?php echo $prefijo; ?>" class="form-label required">
+                    Fecha de Nacimiento
+                    <span id="badgeFechaNacBloqueada<?php echo $prefijo; ?>" class="badge bg-secondary ms-2" style="display:none;"><i class="fas fa-lock"></i> Registrada</span>
+                </label>
                 <input type="date" class="form-control" id="fecha_nac<?php echo $prefijo; ?>" name="fecha_nac" required value="<?php echo htmlspecialchars($_POST['fecha_nac'] ?? ''); ?>">
             </div>
             
@@ -183,19 +286,21 @@ $fechaSolicitud = date('Y-m-d');
                             data-cupos='<?php echo htmlspecialchars(json_encode($todosLosCupos[$carrera['id']])); ?>'
                             data-nombre="<?php echo htmlspecialchars($carrera['nombre']); ?>"
                             <?php echo (isset($_POST['carrera']) && $_POST['carrera'] == $carrera['id']) ? 'selected' : ''; ?>
-                            style="<?php echo !$tieneAlgunCupo ? 'color: red;' : ''; ?>">
+                            style="<?php echo (!$modo_preinscripcion && !$tieneAlgunCupo) ? 'color: red;' : ''; ?>">
                             <?php echo htmlspecialchars($carrera['nombre']); ?>
-                            <?php if (!$tieneAlgunCupo): ?>
+                            <?php if (!$modo_preinscripcion && !$tieneAlgunCupo): ?>
                                 (SIN CUPOS)
                             <?php endif; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if (!$modo_preinscripcion): ?>
                 <div id="cuposInfo<?php echo $prefijo; ?>" class="mt-2 small"></div>
+                <?php endif; ?>
             </div>
         </div>
         <?php if ($modo_preinscripcion): ?>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="mb-3">
                 <label for="turno<?php echo $prefijo; ?>" class="form-label required">Turno</label>
                 <select name="turno" id="turno<?php echo $prefijo; ?>" class="form-control" required disabled>
@@ -204,7 +309,7 @@ $fechaSolicitud = date('Y-m-d');
             </div>
         </div>
         <?php endif; ?>
-        <div class="col-md-4">
+        <div class="<?php echo $modo_preinscripcion ? 'col-md-4' : 'col-md-8'; ?>">
             <div class="mb-3">
                 <label for="sede<?php echo $prefijo; ?>" class="form-label required">Sede</label>
                 <select name="sede" id="sede<?php echo $prefijo; ?>" class="form-control" required>
@@ -214,6 +319,45 @@ $fechaSolicitud = date('Y-m-d');
                 </select>
             </div>
         </div>
+
+        <!-- Asignado OPSU y Lapso Académico -->
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label required"><strong>¿Asignado por OPSU?</strong></label>
+                <div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="asignado_opsu" id="opsu_si<?php echo $prefijo; ?>" value="Sí" <?php echo (isset($_POST['asignado_opsu']) && $_POST['asignado_opsu'] === 'Sí') ? 'checked' : ''; ?> required>
+                        <label class="form-check-label" for="opsu_si<?php echo $prefijo; ?>">Sí</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="asignado_opsu" id="opsu_no<?php echo $prefijo; ?>" value="No" <?php echo (!isset($_POST['asignado_opsu']) || $_POST['asignado_opsu'] !== 'Sí') ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="opsu_no<?php echo $prefijo; ?>">No</label>
+                    </div>
+                </div>
+                <small class="text-muted">Indique si fue asignado a través del Sistema Nacional de Ingreso (OPSU).</small>
+            </div>
+        </div>
+
+        <div class="col-md-6" id="contenedorLapsoOpsu<?php echo $prefijo; ?>" style="<?php echo (isset($_POST['asignado_opsu']) && $_POST['asignado_opsu'] === 'Sí') ? '' : 'display: none;'; ?>">
+            <div class="mb-3">
+                <label for="lapso_opsu<?php echo $prefijo; ?>" class="form-label required"><strong>Lapso Académico de Asignación OPSU</strong></label>
+                <select name="lapso_opsu" id="lapso_opsu<?php echo $prefijo; ?>" class="form-control">
+                    <option value="">-- Seleccione el lapso académico --</option>
+                    <?php 
+                    $periodosOpsu = function_exists('obtenerPeriodosAcademicos') ? obtenerPeriodosAcademicos($db) : [];
+                    $lapsoActualSel = $_POST['lapso_opsu'] ?? '';
+                    foreach ($periodosOpsu as $per): 
+                        $nomPer = $per['nombre_periodo'] ?? ($per['codigo_lapso'] ?? '');
+                    ?>
+                        <option value="<?php echo htmlspecialchars($nomPer); ?>" <?php echo ($lapsoActualSel === $nomPer) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($nomPer); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Indique de qué lapso académico proviene su asignación OPSU.</small>
+            </div>
+        </div>
+    </div>
         
         <!-- Títulos Obtenidos e Instituciones -->
         <div class="col-md-12">
@@ -546,8 +690,8 @@ $fechaSolicitud = date('Y-m-d');
             <button type="reset" class="btn btn-secondary mr-2">
                 <i class="fas fa-eraser mr-1"></i> Limpiar
             </button>
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save mr-1"></i> Guardar
+            <button type="submit" class="btn btn-primary" id="btnSubmitForm<?php echo $prefijo; ?>">
+                <i class="fas fa-save mr-1"></i> <?php echo $modo_preinscripcion ? 'Enviar Preinscripción' : 'Guardar'; ?>
             </button>
         </div>
     </div>
@@ -1175,6 +1319,458 @@ document.addEventListener('DOMContentLoaded', function() {
     if (radioGeneroFemenino) radioGeneroFemenino.addEventListener('change', toggleEmbarazoField);
     if (radioGeneroOtro) radioGeneroOtro.addEventListener('change', toggleEmbarazoField);
     toggleEmbarazoField();
+
+    // =============================================
+    // TOGGLE ASIGNADO OPSU Y LAPSO ACADÉMICO
+    // =============================================
+    const radioOpsuSi = document.getElementById('opsu_si' + prefijo);
+    const radioOpsuNo = document.getElementById('opsu_no' + prefijo);
+    const contenedorLapsoOpsu = document.getElementById('contenedorLapsoOpsu' + prefijo);
+    const campoLapsoOpsu = document.getElementById('lapso_opsu' + prefijo);
+
+    function toggleOpsuField() {
+        if (radioOpsuSi && radioOpsuSi.checked) {
+            if (contenedorLapsoOpsu) contenedorLapsoOpsu.style.display = 'block';
+            if (campoLapsoOpsu) campoLapsoOpsu.setAttribute('required', 'required');
+        } else {
+            if (contenedorLapsoOpsu) contenedorLapsoOpsu.style.display = 'none';
+            if (campoLapsoOpsu) {
+                campoLapsoOpsu.removeAttribute('required');
+                campoLapsoOpsu.value = '';
+            }
+        }
+    }
+
+    if (radioOpsuSi) radioOpsuSi.addEventListener('change', toggleOpsuField);
+    if (radioOpsuNo) radioOpsuNo.addEventListener('change', toggleOpsuField);
+    toggleOpsuField();
+
+    <?php if ($modo_preinscripcion): ?>
+    // =============================================
+    // DETECCIÓN Y PRECARGA DE PREINSCRIPCIÓN PREVIA
+    // (Modales informativos, sin recargar página)
+    // =============================================
+    const numeroCedulaInput = document.getElementById('numero_cedula' + prefijo);
+    const tipoCedulaSelect = document.getElementById('tipo_cedula' + prefijo);
+    const nombreInput = document.getElementById('nombre' + prefijo);
+    const fechaNacInput = document.getElementById('fecha_nac' + prefijo);
+    const avisoPreinscrito = document.getElementById('avisoPreinscrito' + prefijo);
+    const avisoEstudianteInscrito = document.getElementById('avisoEstudianteInscrito' + prefijo);
+    const btnVerDetallePreinscrito = document.getElementById('btnVerDetallePreinscrito' + prefijo);
+    const btnConsultarCedula = document.getElementById('btnConsultarCedula' + prefijo);
+    const btnSubmitForm = document.getElementById('btnSubmitForm' + prefijo) || (document.getElementById('<?php echo $formId; ?>') ? document.getElementById('<?php echo $formId; ?>').querySelector('button[type="submit"]') : null);
+    const badgeCedula = document.getElementById('badgeCedulaBloqueada' + prefijo);
+    const badgeNombre = document.getElementById('badgeNombreBloqueado' + prefijo);
+    const badgeFechaNac = document.getElementById('badgeFechaNacBloqueada' + prefijo);
+
+    let ultimaCedulaConsultada = '';
+    let datosPreinscritoCargados = null;
+    let consultaEnProgreso = false;
+
+    // Bloqueo total para estudiante ya registrado (no puede cambiar cédula ni enviar preinscripción)
+    function bloquearEstudianteInscrito() {
+        if (numeroCedulaInput) {
+            numeroCedulaInput.readOnly = true;
+            numeroCedulaInput.style.backgroundColor = '#e9ecef';
+            numeroCedulaInput.style.cursor = 'not-allowed';
+            numeroCedulaInput.style.pointerEvents = 'none';
+        }
+        if (tipoCedulaSelect) {
+            tipoCedulaSelect.style.pointerEvents = 'none';
+            tipoCedulaSelect.style.backgroundColor = '#e9ecef';
+        }
+        if (badgeCedula) {
+            badgeCedula.innerHTML = '<i class="fas fa-lock mr-1"></i> Alumno Ya Inscrito';
+            badgeCedula.className = 'badge bg-danger ms-2';
+            badgeCedula.style.display = 'inline-block';
+        }
+        if (avisoEstudianteInscrito) avisoEstudianteInscrito.style.display = 'block';
+        if (avisoPreinscrito) avisoPreinscrito.style.display = 'none';
+        if (btnSubmitForm) btnSubmitForm.disabled = true;
+    }
+
+    // Bloqueo estricto para aspirante preinscrito (cédula, nombre y fecha_nac inmodificables)
+    function bloquearCamposPreinscrito(d) {
+        if (numeroCedulaInput) {
+            numeroCedulaInput.readOnly = true;
+            numeroCedulaInput.style.backgroundColor = '#e9ecef';
+            numeroCedulaInput.style.cursor = 'not-allowed';
+            numeroCedulaInput.style.pointerEvents = 'none';
+        }
+        if (tipoCedulaSelect) {
+            tipoCedulaSelect.style.pointerEvents = 'none';
+            tipoCedulaSelect.style.backgroundColor = '#e9ecef';
+            if (d && d.tipo_cedula) tipoCedulaSelect.value = d.tipo_cedula;
+        }
+        if (badgeCedula) {
+            badgeCedula.innerHTML = '<i class="fas fa-lock mr-1"></i> Cédula Inmodificable';
+            badgeCedula.className = 'badge bg-secondary ms-2';
+            badgeCedula.style.display = 'inline-block';
+        }
+
+        if (nombreInput) {
+            if (d && d.nombre) nombreInput.value = d.nombre;
+            nombreInput.readOnly = true;
+            nombreInput.style.backgroundColor = '#e9ecef';
+            nombreInput.style.cursor = 'not-allowed';
+            if (badgeNombre) badgeNombre.style.display = 'inline-block';
+        }
+
+        if (fechaNacInput) {
+            if (d && d.fecha_nac) fechaNacInput.value = d.fecha_nac;
+            fechaNacInput.readOnly = true;
+            fechaNacInput.style.backgroundColor = '#e9ecef';
+            fechaNacInput.style.cursor = 'not-allowed';
+            fechaNacInput.style.pointerEvents = 'none';
+            if (badgeFechaNac) badgeFechaNac.style.display = 'inline-block';
+        }
+
+        if (avisoEstudianteInscrito) avisoEstudianteInscrito.style.display = 'none';
+        if (avisoPreinscrito) avisoPreinscrito.style.display = 'block';
+        if (btnSubmitForm) btnSubmitForm.disabled = false;
+    }
+
+    // Modal: Estudiante ya formalmente registrado en el sistema (sin opción de cambiar cédula)
+    function mostrarModalEstudianteInscrito(mensaje) {
+        const texto = mensaje || 'Esta cédula ya se encuentra formalmente inscrita como estudiante en el sistema.';
+        bloquearEstudianteInscrito();
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Estudiante Ya Registrado',
+                html: '<div class="text-left" style="font-size: 14.5px;">' +
+                      '<p class="mb-2">' + texto + '</p>' +
+                      '<div class="alert alert-danger py-2 px-3 my-2" style="font-size: 13px; border-left: 4px solid #dc3545;">' +
+                      '<strong><i class="fas fa-lock mr-1"></i> Restricción institucional:</strong><br>' +
+                      'Esta cédula ya posee matrícula regular activa.' +
+                      '</div>' +
+                      '<p class="text-muted small mb-0">Por favor ingrese al sistema con sus credenciales de acceso institucional.</p>' +
+                      '</div>',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-sign-in-alt mr-1"></i> Iniciar Sesión',
+                cancelButtonText: '<i class="fas fa-times mr-1"></i> Cerrar',
+                confirmButtonColor: '#003366',
+                cancelButtonColor: '#6c757d',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = 'login.php';
+                }
+            });
+        } else if (window.$ && typeof $('#modalEstudianteInscrito' + prefijo).modal === 'function') {
+            const txtElem = document.getElementById('textoEstudianteInscrito' + prefijo);
+            if (txtElem) txtElem.textContent = texto;
+            $('#modalEstudianteInscrito' + prefijo).modal('show');
+        } else {
+            alert(texto);
+        }
+    }
+
+    // Modal: Preinscripción previa encontrada
+    function mostrarModalPreinscripcionPrevia(d) {
+        const nombreAspirante = d && d.nombre ? d.nombre : '';
+        const cedulaAspirante = d && d.idusuario ? d.idusuario : '';
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Preinscripción Previa Encontrada',
+                html: '<div class="text-left" style="font-size: 14px;">' +
+                      '<p class="mb-2">Detectamos que ya se había preinscrito anteriormente a nombre de: <strong>' + (nombreAspirante || 'este aspirante') + '</strong>' +
+                      (cedulaAspirante ? ' (Cédula: <strong>' + cedulaAspirante + '</strong>)' : '') + '.</p>' +
+                      '<div class="alert alert-warning py-2 px-3 my-2" style="font-size: 13px; border-left: 4px solid #ffc107;">' +
+                      '<strong><i class="fas fa-lock mr-1"></i> Datos protegidos por seguridad institucional:</strong><br>' +
+                      '• Su <strong>Cédula</strong>, <strong>Nombre</strong> y <strong>Fecha de Nacimiento</strong> no pueden ser modificados.' +
+                      '</div>' +
+                      '<p class="mb-0 text-muted" style="font-size: 13px;">' +
+                      'Todos los demás datos (carrera, turno, asignación OPSU, teléfonos, dirección, títulos, etc.) han sido cargados en el formulario y puede actualizarlos libremente antes de enviar su solicitud.' +
+                      '</p>' +
+                      '</div>',
+                confirmButtonText: '<i class="fas fa-check mr-1"></i> Continuar y Actualizar Datos',
+                confirmButtonColor: '#003366',
+                allowOutsideClick: true
+            });
+        } else if (window.$ && typeof $('#modalPreinscripcionPrevia' + prefijo).modal === 'function') {
+            const nomElem = document.getElementById('nombreModalPreinscrito' + prefijo);
+            const cedElem = document.getElementById('cedulaModalPreinscrito' + prefijo);
+            if (nomElem) nomElem.textContent = nombreAspirante;
+            if (cedElem) cedElem.textContent = cedulaAspirante;
+            $('#modalPreinscripcionPrevia' + prefijo).modal('show');
+        } else {
+            alert('Se cargaron sus datos de una preinscripción previa. Cédula, nombre y fecha de nacimiento quedan protegidos.');
+        }
+    }
+
+    function consultarPreinscripcionPrevia(forzarMostrarModal = false) {
+        if (!numeroCedulaInput) return;
+        const num = numeroCedulaInput.value.replace(/\D/g, '');
+        const tipo = tipoCedulaSelect ? tipoCedulaSelect.value : 'V';
+
+        if (num.length < 6) return;
+        const cedulaCompleta = tipo + num;
+
+        // Si ya tenemos los datos en memoria para esta misma cédula y el usuario vuelve a consultar:
+        if (cedulaCompleta === ultimaCedulaConsultada && datosPreinscritoCargados) {
+            if (forzarMostrarModal) {
+                mostrarModalPreinscripcionPrevia(datosPreinscritoCargados);
+            }
+            return;
+        }
+
+        if (consultaEnProgreso) return;
+
+        consultaEnProgreso = true;
+
+        const apiConsultarUrl = 'admin/api/consultar_preinscripcion.php';
+        fetch(apiConsultarUrl + '?tipo_cedula=' + encodeURIComponent(tipo) + '&numero_cedula=' + encodeURIComponent(num))
+            .then(res => res.json())
+            .then(data => {
+                consultaEnProgreso = false;
+                if (!data) return;
+
+                if (data.inscrito) {
+                    ultimaCedulaConsultada = cedulaCompleta;
+                    datosPreinscritoCargados = null;
+                    mostrarModalEstudianteInscrito(data.message);
+                    return;
+                }
+
+                if (data.success && data.encontrado && data.datos) {
+                    const d = data.datos;
+                    ultimaCedulaConsultada = cedulaCompleta;
+                    datosPreinscritoCargados = d;
+
+                    // 1. BLOQUEAR ESTRICTAMENTE CÉDULA, NOMBRE Y FECHA DE NACIMIENTO
+                    bloquearCamposPreinscrito(d);
+
+                    // 2. PRECARGAR LOS DEMÁS DATOS (EDITABLES)
+                    if (d.genero) {
+                        const rGen = document.querySelector('input[name="genero"][value="' + d.genero + '"]');
+                        if (rGen) { rGen.checked = true; rGen.dispatchEvent(new Event('change')); }
+                    }
+                    if (d.embarazada !== undefined && d.embarazada !== null) {
+                        const rEmb = document.getElementById('embarazada_' + (d.embarazada == '1' ? 'si' : 'no') + prefijo);
+                        if (rEmb) rEmb.checked = true;
+                    }
+                    if (d.edo_civil) {
+                        const selEdo = document.getElementById('edo_civil' + prefijo);
+                        if (selEdo) selEdo.value = d.edo_civil;
+                    }
+                    if (d.email) {
+                        const inpEmail = document.getElementById('email' + prefijo);
+                        if (inpEmail) inpEmail.value = d.email;
+                    }
+                    if (d.tlf) {
+                        const inpTlf = document.getElementById('tlf' + prefijo);
+                        if (inpTlf) inpTlf.value = d.tlf;
+                    }
+                    if (d.cel) {
+                        const inpCel = document.getElementById('cel' + prefijo);
+                        if (inpCel) inpCel.value = d.cel;
+                    }
+                    if (d.num_telf_opc) {
+                        const inpOpc = document.getElementById('num_telf_opc' + prefijo);
+                        if (inpOpc) inpOpc.value = d.num_telf_opc;
+                    }
+                    if (d.direccion) {
+                        const inpDir = document.getElementById('direccion' + prefijo);
+                        if (inpDir) inpDir.value = d.direccion;
+                    }
+                    if (d.comuna) {
+                        const inpCom = document.getElementById('comuna' + prefijo);
+                        if (inpCom) inpCom.value = d.comuna;
+                    }
+                    if (d.casaapto) {
+                        const inpCasa = document.getElementById('casaapto' + prefijo);
+                        if (inpCasa) inpCasa.value = d.casaapto;
+                    }
+                    if (d.punto_referencia) {
+                        const inpPunto = document.getElementById('punto_referencia' + prefijo);
+                        if (inpPunto) inpPunto.value = d.punto_referencia;
+                    }
+                    if (d.etnia) {
+                        const selEtnia = document.getElementById('etnia' + prefijo);
+                        if (selEtnia) selEtnia.value = d.etnia;
+                    }
+                    if (d.grupo_familiar !== undefined && d.grupo_familiar !== null) {
+                        const inpGrup = document.getElementById('grupo_familiar' + prefijo);
+                        if (inpGrup) inpGrup.value = d.grupo_familiar;
+                    }
+                    if (d.acargo_usted !== undefined && d.acargo_usted !== null) {
+                        const inpAcargo = document.getElementById('acargo_usted' + prefijo);
+                        if (inpAcargo) inpAcargo.value = d.acargo_usted;
+                    }
+                    if (d.fuente_ingresos) {
+                        const selFuen = document.getElementById('fuente_ingresos' + prefijo);
+                        if (selFuen) selFuen.value = d.fuente_ingresos;
+                    }
+                    if (d.tipo_vivienda) {
+                        const selViv = document.getElementById('tipo_vivienda' + prefijo);
+                        if (selViv) selViv.value = d.tipo_vivienda;
+                    }
+                    if (d.tenencia_vivienda) {
+                        const selTen = document.getElementById('tenencia_vivienda' + prefijo);
+                        if (selTen) selTen.value = d.tenencia_vivienda;
+                    }
+                    if (d.sede) {
+                        const selSede = document.getElementById('sede' + prefijo);
+                        if (selSede) selSede.value = d.sede;
+                    }
+
+                    // Discapacidad y Enfermedad
+                    if (d.discapacidad && d.discapacidad !== 'Ninguna' && d.discapacidad.trim() !== '') {
+                        const rDiscSi = document.getElementById('discapacidad_si' + prefijo);
+                        if (rDiscSi) { rDiscSi.checked = true; rDiscSi.dispatchEvent(new Event('change')); }
+                        const inpDisc = document.getElementById('discapacidad' + prefijo);
+                        if (inpDisc) inpDisc.value = d.discapacidad;
+                    }
+                    if (d.enfermedad && d.enfermedad !== 'Ninguna' && d.enfermedad.trim() !== '') {
+                        const rEnfSi = document.getElementById('enfermedad_si' + prefijo);
+                        if (rEnfSi) { rEnfSi.checked = true; rEnfSi.dispatchEvent(new Event('change')); }
+                        const inpEnf = document.getElementById('enfermedad' + prefijo);
+                        if (inpEnf) inpEnf.value = d.enfermedad;
+                    }
+
+                    // Estado, Municipio, Parroquia
+                    if (d.estado) {
+                        const estadoSelect = document.getElementById('estado' + prefijo);
+                        if (estadoSelect) {
+                            estadoSelect.value = d.estado;
+                            if (typeof cargarMunicipios === 'function') {
+                                cargarMunicipios(d.estado, d.municipio || '', d.parroquia || '');
+                            }
+                        }
+                    }
+
+                    // Carrera y Turno
+                    if (d.carrera) {
+                        const selCar = document.getElementById('carrera' + prefijo);
+                        if (selCar) {
+                            selCar.value = d.carrera;
+                            if (typeof actualizarTurnos === 'function') {
+                                actualizarTurnos();
+                            }
+                            if (d.turno) {
+                                setTimeout(() => {
+                                    const selTur = document.getElementById('turno' + prefijo);
+                                    if (selTur) selTur.value = d.turno;
+                                }, 150);
+                            }
+                        }
+                    }
+
+                    // Asignado OPSU y Lapso
+                    if (d.asignado_opsu === 'Sí') {
+                        if (radioOpsuSi) {
+                            radioOpsuSi.checked = true;
+                            toggleOpsuField();
+                        }
+                        if (campoLapsoOpsu && d.lapso_opsu) {
+                            campoLapsoOpsu.value = d.lapso_opsu;
+                        }
+                    } else {
+                        if (radioOpsuNo) {
+                            radioOpsuNo.checked = true;
+                            toggleOpsuField();
+                        }
+                    }
+
+                    // Potencialidades
+                    if (d.potencialidades) {
+                        const inpPot = document.getElementById('potencialidades' + prefijo);
+                        if (inpPot) inpPot.value = d.potencialidades;
+                    }
+
+                    // Mostrar modal de aviso informativo
+                    mostrarModalPreinscripcionPrevia(d);
+                } else {
+                    // Cédula no registrada previamente
+                    datosPreinscritoCargados = null;
+                    if (forzarMostrarModal && num.length >= 6) {
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Cédula Disponible',
+                                text: 'No posee registros previos. Puede continuar con su preinscripción completando el formulario.',
+                                confirmButtonColor: '#003366',
+                                timer: 2500,
+                                showConfirmButton: false
+                            });
+                        }
+                    }
+                }
+            })
+            .catch(err => {
+                consultaEnProgreso = false;
+                console.error('Error al consultar preinscripción previa:', err);
+            });
+    }
+
+    if (numeroCedulaInput) {
+        // Al salir del campo (blur), consultar y abrir modal si corresponde
+        numeroCedulaInput.addEventListener('blur', function() {
+            consultarPreinscripcionPrevia(true);
+        });
+
+        // Al presionar Enter en el campo de cédula
+        numeroCedulaInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                consultarPreinscripcionPrevia(true);
+            }
+        });
+
+        // Al teclear: si se altera el número, se restablece el estado para que vuelva a detonarse sin recargar
+        numeroCedulaInput.addEventListener('input', function() {
+            const num = this.value.replace(/\D/g, '');
+            const currentFull = (tipoCedulaSelect ? tipoCedulaSelect.value : 'V') + num;
+            if (currentFull !== ultimaCedulaConsultada) {
+                ultimaCedulaConsultada = '';
+                datosPreinscritoCargados = null;
+                clearTimeout(window.cedulaCheckTimeout);
+                if (num.length >= 7) {
+                    window.cedulaCheckTimeout = setTimeout(function() {
+                        consultarPreinscripcionPrevia(true);
+                    }, 800);
+                }
+            }
+        });
+    }
+
+    if (tipoCedulaSelect) {
+        tipoCedulaSelect.addEventListener('change', function() {
+            ultimaCedulaConsultada = '';
+            datosPreinscritoCargados = null;
+            if (numeroCedulaInput && numeroCedulaInput.value.replace(/\D/g, '').length >= 6) {
+                consultarPreinscripcionPrevia(true);
+            }
+        });
+    }
+
+    // Botón "Verificar" junto al campo de cédula
+    if (btnConsultarCedula) {
+        btnConsultarCedula.addEventListener('click', function() {
+            consultarPreinscripcionPrevia(true);
+        });
+    }
+
+    // Botón "Ver Aviso" en el banner informativo
+    if (btnVerDetallePreinscrito) {
+        btnVerDetallePreinscrito.addEventListener('click', function() {
+            if (datosPreinscritoCargados) {
+                mostrarModalPreinscripcionPrevia(datosPreinscritoCargados);
+            } else {
+                consultarPreinscripcionPrevia(true);
+            }
+        });
+    }
+
+    // Si ya viene una cédula al cargar la página (por POST previo)
+    if (numeroCedulaInput && numeroCedulaInput.value.replace(/\D/g, '').length >= 6) {
+        consultarPreinscripcionPrevia(false);
+    }
+    <?php endif; ?>
 });
 
 // =============================================
@@ -1189,6 +1785,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!carreraSelect) return;
     
     function actualizarCuposTiempoReal(carreraId, turno) {
+        <?php if ($modo_preinscripcion): ?>
+        return;
+        <?php endif; ?>
         if (!carreraId || !turno) return;
         const apiUrl = '<?php echo ($modo_preinscripcion ? "admin/" : ""); ?>api/obtener_cupos_disponibles.php';
         fetch(apiUrl + '?carrera_id=' + carreraId + '&turno=' + turno + '&periodo_id=<?php echo (int)$periodoFormulario; ?>')
@@ -1239,6 +1838,27 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = carreraSelect.options[carreraSelect.selectedIndex];
         const carreraId = carreraSelect.value;
         
+        <?php if ($modo_preinscripcion): ?>
+        if (!carreraId) {
+            if (turnoSelect) {
+                turnoSelect.disabled = true;
+                turnoSelect.innerHTML = '<option value="">-- Primero seleccione una carrera --</option>';
+            }
+            if (cuposInfoDiv) cuposInfoDiv.innerHTML = '';
+            return;
+        }
+        if (turnoSelect) {
+            turnoSelect.disabled = false;
+            const currentValue = turnoSelect.value;
+            turnoSelect.innerHTML = '<option value="">-- Seleccione un turno --</option>' +
+                                    '<option value="Diurno">Diurno</option>' +
+                                    '<option value="Nocturno">Nocturno</option>';
+            if (currentValue) turnoSelect.value = currentValue;
+        }
+        if (cuposInfoDiv) cuposInfoDiv.innerHTML = '';
+        return;
+        <?php endif; ?>
+
         if (!carreraId || !selectedOption || !selectedOption.dataset.cupos) {
             if (turnoSelect) {
                 turnoSelect.disabled = true;
@@ -1483,6 +2103,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (radioGeneroFemenino && radioGeneroFemenino.checked) {
             if (embarazoSi && embarazoNo && !embarazoSi.checked && !embarazoNo.checked) {
                 mensajesError.push('Debe indicar si la estudiante está embarazada o no');
+                isValid = false;
+            }
+        }
+
+        const radioOpsuSi = document.getElementById('opsu_si' + prefijo);
+        const campoLapsoOpsu = document.getElementById('lapso_opsu' + prefijo);
+        if (radioOpsuSi && radioOpsuSi.checked && campoLapsoOpsu) {
+            if (!campoLapsoOpsu.value.trim()) {
+                mensajesError.push('Debe seleccionar el lapso académico de asignación OPSU');
                 isValid = false;
             }
         }

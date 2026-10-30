@@ -20,14 +20,29 @@ $asignados = obtenerEstudiantesAsignados($db, $id_seccion);
 $seccion_llena = ($seccion['inscritos'] >= $seccion['capacidad_maxima']);
 $periodo_inactivo = ($seccion['periodo_activo'] == 0);
 
-if ($periodo_inactivo) { $_SESSION['error']="Período inactivo"; header("Location: ver_seccion.php?id=$id_seccion"); exit(); }
+if ($periodo_inactivo) { 
+    $_SESSION['error'] = "Período inactivo"; 
+    ?>
+    <form id="redirPeriodo" method="POST" action="ver_seccion.php">
+        <input type="hidden" name="id" value="<?= $id_seccion ?>">
+    </form>
+    <script>document.getElementById('redirPeriodo').submit();</script>
+    <?php
+    exit(); 
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $resultado = asignarEstudiantes($db, $id_seccion, $_POST['estudiantes'] ?? []);
     if ($resultado['success']) {
         $_SESSION['success'] = $resultado['message'];
         if(isset($resultado['warning'])) $_SESSION['warning'] = $resultado['warning'];
-        header("Location: ver_seccion.php?id=$id_seccion"); exit();
+        ?>
+        <form id="redirAsig" method="POST" action="ver_seccion.php">
+            <input type="hidden" name="id" value="<?= $id_seccion ?>">
+        </form>
+        <script>document.getElementById('redirAsig').submit();</script>
+        <?php
+        exit();
     } else $error_message = $resultado['message'];
 }
 
@@ -35,8 +50,12 @@ include(__DIR__ . '/../includes/head.php');
 ?>
 
 <div class="container-fluid py-2">
-    <div class="row mb-2"><div class="col-12 d-flex justify-content-between">
-        <h2 class="h4 mb-0">Asignar Estudiantes</h2><a href="ver_seccion.php?id=<?=$id_seccion?>" class="btn btn-secondary btn-sm">← Volver</a>
+    <div class="row mb-2"><div class="col-12 d-flex justify-content-between align-items-center">
+        <h2 class="h4 mb-0">Asignar Estudiantes</h2>
+        <form method="POST" action="ver_seccion.php" class="d-inline m-0">
+            <input type="hidden" name="id" value="<?= $id_seccion ?>">
+            <button type="submit" class="btn btn-secondary btn-sm">← Volver</button>
+        </form>
     </div></div>
     <?php if(isset($error_message)) echo '<div class="alert alert-danger py-1">'.$error_message.'</div>'; ?>
     <div class="card shadow"><div class="card-header py-1 d-flex justify-content-between">

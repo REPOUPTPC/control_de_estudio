@@ -26,7 +26,10 @@ include(__DIR__ . '/../includes/head.php');
         <div class="col-12 d-flex justify-content-between">
             <h2 class="h4 mb-0">Avance de Trayectos - <?= htmlspecialchars($seccion['codigo_seccion']) ?></h2>
             <div>
-                <a href="ver_seccion.php?id=<?= $id_seccion ?>" class="btn btn-secondary btn-sm">← Volver</a>
+                <form method="POST" action="ver_seccion.php" class="d-inline m-0">
+                    <input type="hidden" name="id" value="<?= $id_seccion ?>">
+                    <button type="submit" class="btn btn-secondary btn-sm">← Volver</button>
+                </form>
             </div>
         </div>
     </div>
@@ -319,7 +322,16 @@ $(document).ready(function() {
                             alert(data.message);
                             if (data.nueva_seccion_id) {
                                 if (confirm('¿Desea ver la nueva sección creada?')) {
-                                    window.location.href = 'ver_seccion.php?id=' + data.nueva_seccion_id;
+                                    const f = document.createElement('form');
+                                    f.method = 'POST';
+                                    f.action = 'ver_seccion.php';
+                                    const inp = document.createElement('input');
+                                    inp.type = 'hidden';
+                                    inp.name = 'id';
+                                    inp.value = data.nueva_seccion_id;
+                                    f.appendChild(inp);
+                                    document.body.appendChild(f);
+                                    f.submit();
                                 } else {
                                     location.reload();
                                 }

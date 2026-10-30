@@ -5,18 +5,26 @@ ini_set('display_errors', '1');
 $titulopag = "Asignación de Materias a Docentes";
 include('../funciones/functions.php');
 
-// Verificar si el usuario es director de carrera
+cargarPermisosUsuario();
+
 // Verificar autenticación y rol
-if (!isLoggedIn() || !isUser()) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+if (!isLoggedIn()) {
     header('location: ../login.php');
+    exit();
+}
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
     exit();
 }
 
 // LLAMAR A LA FUNCIÓN DE VISITA
 visita();
 
-$carrera_director = $_SESSION['user']['carrera_di'];
+$carrera_director = $_SESSION['user']['carrera_di'] ?? 0;
+if (!$carrera_director && isAdmin()) {
+    $carrera_director = $_SESSION['admin_selected_carrera_di'] ?? 1;
+}
 
 // Obtener información de la carrera del director
 $query_carrera = "SELECT id_carrera, nombre_carrera FROM carreras WHERE id_carrera = ?";

@@ -1,8 +1,10 @@
 <?php
 require_once(__DIR__ . '/../funciones/functions.php');
 
-if (!isLoggedIn()) {
-    echo '<div class="alert alert-danger">Sesión no válida.</div>';
+cargarPermisosUsuario();
+
+if (!isLoggedIn() || !isDirectorCarrera()) {
+    echo '<div class="alert alert-danger">No tienes permisos de Director de Carrera.</div>';
     exit;
 }
 

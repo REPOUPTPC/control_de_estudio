@@ -686,6 +686,8 @@ function insertarEstudiante($datos) {
             'edo_civil' => $datos['edo_civil'] ?? null,
             'fecha_nac' => $datos['fecha_nac'] ?? null,
             'num_telf_opc' => $datos['num_telf_opc'] ?? '',
+            'asignado_opsu' => (!empty($datos['asignado_opsu']) && $datos['asignado_opsu'] === 'Sí') ? 'Sí' : 'No',
+            'lapso_opsu' => (!empty($datos['asignado_opsu']) && $datos['asignado_opsu'] === 'Sí') ? ($datos['lapso_opsu'] ?? null) : null,
             
             // Foto de perfil
             'foto_perfil' => $nombreFoto,
@@ -995,7 +997,42 @@ function obtenerPreinscripcionRechazada($idusuario) {
 }
 
 /**
- * Inserta una preinscripción en la tabla preinscripcion
+ * Busca si existe una preinscripción previa para una cédula en cualquier formato (con o sin letra/guion)
+ */
+function obtenerPreinscripcionPorCedula($idusuario) {
+    global $db;
+    $idusuarioLimpio = trim($idusuario);
+    $soloNum = preg_replace('/[^0-9]/', '', $idusuarioLimpio);
+    $candidatos = [$idusuarioLimpio];
+    if (!empty($soloNum)) {
+        $candidatos[] = $soloNum;
+        $candidatos[] = 'V' . $soloNum;
+        $candidatos[] = 'V-' . $soloNum;
+        $candidatos[] = 'E' . $soloNum;
+        $candidatos[] = 'E-' . $soloNum;
+        $candidatos[] = 'P' . $soloNum;
+        $candidatos[] = 'P-' . $soloNum;
+    }
+    $candidatos = array_values(array_unique($candidatos));
+    $inSql = implode(',', array_fill(0, count($candidatos), '?'));
+    $types = str_repeat('s', count($candidatos));
+
+    $query = "SELECT * FROM preinscripcion WHERE idusuario IN ($inSql) ORDER BY id DESC LIMIT 1";
+    $stmt = $db->prepare($query);
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param($types, ...$candidatos);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+
+    return $row ?: null;
+}
+
+/**
+ * Inserta o actualiza una preinscripción en la tabla preinscripcion
  */
 function insertarPreinscripcion($datos) {
     global $db;
@@ -1010,30 +1047,28 @@ function insertarPreinscripcion($datos) {
     if (estudianteExiste($datos['idusuario'])) {
         return [
             'success' => false,
-            'message' => 'Ya existe un estudiante con esta cédula. Si ya estás inscrito, inicia sesión con tus datos.'
+            'message' => 'Ya existe un estudiante con esta cédula formalmente inscrito en el sistema. Inicie sesión con sus datos.'
         ];
     }
 
-    if (preinscripcionPendienteExiste($datos['idusuario'])) {
-        return [
-            'success' => false,
-            'message' => 'Ya existe una preinscripción pendiente con esta cédula. Por favor espera la revisión administrativa.'
-        ];
+    // Verificar si ya se había preinscrito previamente (pero nunca formalizó inscripción)
+    $preinscripcionExistente = obtenerPreinscripcionPorCedula($datos['idusuario']);
+
+    // Si ya existe registro previo, no se puede modificar cédula, nombre ni fecha de nacimiento
+    if ($preinscripcionExistente) {
+        $datos['idusuario'] = $preinscripcionExistente['idusuario'];
+        $datos['nombre'] = $preinscripcionExistente['nombre'];
+        $datos['fecha_nac'] = $preinscripcionExistente['fecha_nac'];
+        $datos['username'] = $preinscripcionExistente['username'];
     }
 
     $idPeriodo = !empty($datos['id_periodo']) ? (int)$datos['id_periodo'] : resolverIdPeriodo();
 
-    if (!empty($datos['carrera']) && !empty($datos['turno']) && !hayCupoDisponible($datos['carrera'], $datos['turno'], $idPeriodo)) {
-        return [
-            'success' => false,
-            'message' => 'No hay cupos disponibles para la carrera seleccionada en el turno ' . htmlspecialchars($datos['turno']) . '. Contacte con Secretaría.'
-        ];
-    }
+    // NOTA: Se eliminó la limitante de cupos según requerimiento ("no debe tener limitante de cupos todo el mundo se puede preinscribir")
 
-    $preinscripcionRechazada = obtenerPreinscripcionRechazada($datos['idusuario']);
     $fotoPerfil = '';
     $fechaAct = date('Y-m-d H:i:s');
-    $datos['status'] = $datos['status'] ?? 'Pendiente';
+    $datos['status'] = 'Pendiente';
     $datos['fecha_ingreso'] = $datos['fecha_ingreso'] ?? date('Y-m-d');
     $datos['fecha_act'] = $fechaAct;
     $datos['username'] = $datos['idusuario'];
@@ -1075,6 +1110,8 @@ function insertarPreinscripcion($datos) {
             if (isset($resultadoFoto['success']) && $resultadoFoto['success']) {
                 $fotoPerfil = $resultadoFoto['nombre_archivo'];
             }
+        } elseif ($preinscripcionExistente && !empty($preinscripcionExistente['foto_perfil'])) {
+            $fotoPerfil = $preinscripcionExistente['foto_perfil'];
         }
 
         $valores = [
@@ -1105,6 +1142,8 @@ function insertarPreinscripcion($datos) {
             'pais_titulo' => !empty($paisTitulos) ? implode('|||', $paisTitulos) : '',
             'legalizado_titulo' => !empty($legalizadoTitulos) ? implode('|||', $legalizadoTitulos) : '',
             'sede' => $datos['sede'] ?? null,
+            'asignado_opsu' => (!empty($datos['asignado_opsu']) && $datos['asignado_opsu'] === 'Sí') ? 'Sí' : 'No',
+            'lapso_opsu' => (!empty($datos['asignado_opsu']) && $datos['asignado_opsu'] === 'Sí') ? trim($datos['lapso_opsu'] ?? '') : null,
             'turno' => $datos['turno'] ?? null,
             'id_periodo' => $idPeriodo,
             'potencialidades' => $datos['potencialidades'] ?? '',
@@ -1116,14 +1155,14 @@ function insertarPreinscripcion($datos) {
             'num_telf_opc' => $datos['num_telf_opc'] ?? '',
             'fecha_ingreso' => $datos['fecha_ingreso'],
             'fecha_act' => $fechaAct,
-            'status' => $datos['status'],
+            'status' => 'Pendiente',
             'user_type' => $datos['user_type'],
             'foto_perfil' => $fotoPerfil,
             'aprobado_por' => null,
             'fecha_aprobado' => null,
             'rechazado_por' => null,
             'fecha_rechazo' => null,
-            'motivo_rechazo' => $datos['motivo_rechazo'] ?? null,
+            'motivo_rechazo' => null,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s')
         ];
@@ -1138,12 +1177,13 @@ function insertarPreinscripcion($datos) {
             $valoresBind[] = $valor;
         }
 
-        if ($preinscripcionRechazada) {
+        if ($preinscripcionExistente) {
             $updateColumns = [];
             $updateValues = [];
             $updateTypes = '';
             foreach ($valores as $key => $valor) {
-                if ($key === 'created_at' || $key === 'updated_at') {
+                // Inmodificables por normativa y seguridad
+                if (in_array($key, ['created_at', 'updated_at', 'nombre', 'fecha_nac', 'idusuario', 'username'])) {
                     continue;
                 }
                 $updateColumns[] = "`$key` = ?";
@@ -1151,20 +1191,27 @@ function insertarPreinscripcion($datos) {
                 $updateValues[] = $valor;
             }
 
-            $updateValues[] = $preinscripcionRechazada['id'];
+            $updateValues[] = (int)$preinscripcionExistente['id'];
             $updateTypes .= 'i';
 
-            $sql = "UPDATE preinscripcion SET " . implode(', ', $updateColumns) . " WHERE id = ?";
+            $sql = "UPDATE preinscripcion SET " . implode(', ', $updateColumns) . ", `status` = 'Pendiente', `updated_at` = NOW() WHERE id = ?";
             $stmt = $db->prepare($sql);
             if (!$stmt) {
                 throw new Exception('Error al preparar actualización de preinscripción: ' . $db->error);
             }
             $stmt->bind_param($updateTypes, ...$updateValues);
             if (!$stmt->execute()) {
-                throw new Exception('Error al actualizar la preinscripción rechazada: ' . $stmt->error);
+                throw new Exception('Error al actualizar la preinscripción: ' . $stmt->error);
             }
-            $preinscripcionId = $preinscripcionRechazada['id'];
+            $preinscripcionId = $preinscripcionExistente['id'];
             $stmt->close();
+
+            $db->commit();
+            return [
+                'success' => true,
+                'message' => '✅ Preinscripción actualizada correctamente con sus nuevos datos. Se ha enviado un mensaje a su correo electrónico.',
+                'id' => $preinscripcionId
+            ];
         } else {
             $sql = "INSERT INTO preinscripcion (`" . implode('`, `', $columnas) . "`) VALUES (" . implode(', ', $placeholders) . ")";
             $stmt = $db->prepare($sql);
@@ -1183,7 +1230,7 @@ function insertarPreinscripcion($datos) {
 
         return [
             'success' => true,
-            'message' => '✅ Preinscripción enviada correctamente. Se a enviado un mensaje a su correo electrónico.',
+            'message' => '✅ Preinscripción enviada correctamente. Se ha enviado un mensaje a su correo electrónico.',
             'id' => $preinscripcionId
         ];
     } catch (Exception $e) {
@@ -2122,6 +2169,8 @@ function aceptarPreinscripcion($id, $adminId) {
         'embarazada' => $preinscripcion['embarazada'],
         'num_telf_opc' => $preinscripcion['num_telf_opc'],
         'fecha_ingreso' => $preinscripcion['fecha_ingreso'],
+        'asignado_opsu' => $preinscripcion['asignado_opsu'] ?? 'No',
+        'lapso_opsu' => $preinscripcion['lapso_opsu'] ?? null,
         'status' => 1, // 🔥 CAMBIADO: 1 = Activo (entero, no string)
         'foto_perfil' => $preinscripcion['foto_perfil'] ?? ''
     ];
@@ -2318,10 +2367,17 @@ function validarEstudiante($datos) {
     }
     
     // Validar que la fecha de ingreso no sea anterior a la de nacimiento
-    $fechaNac = new DateTime($datos['fecha_nac']);
-    $fechaIngreso = new DateTime($datos['fecha_ingreso']);
-    if ($fechaIngreso < $fechaNac) {
-        $errores[] = 'La fecha de ingreso no puede ser anterior a la fecha de nacimiento';
+    if (!empty($datos['fecha_nac']) && !empty($datos['fecha_ingreso'])) {
+        $fechaNac = new DateTime($datos['fecha_nac']);
+        $fechaIngreso = new DateTime($datos['fecha_ingreso']);
+        if ($fechaIngreso < $fechaNac) {
+            $errores[] = 'La fecha de ingreso no puede ser anterior a la fecha de nacimiento';
+        }
+    }
+
+    // Validar asignación OPSU
+    if (isset($datos['asignado_opsu']) && $datos['asignado_opsu'] === 'Sí' && empty($datos['lapso_opsu'])) {
+        $errores[] = 'Debe indicar el lapso académico de asignación OPSU';
     }
     
     return empty($errores) ? true : $errores;
@@ -7261,9 +7317,17 @@ function crearSeccion($db, $datos) {
             }
         }
         
+        $msg_crear = "Sección creada exitosamente!";
+        if (function_exists('asignarEstudiantesReincorporacionPendientesASeccion')) {
+            $asignados_reinc = asignarEstudiantesReincorporacionPendientesASeccion($seccion_id);
+            if ($asignados_reinc > 0) {
+                $msg_crear .= " Se asignaron automáticamente $asignados_reinc estudiante(s) en espera de reincorporación.";
+            }
+        }
+
         return [
             'success' => true,
-            'message' => "Sección creada exitosamente!",
+            'message' => $msg_crear,
             'id_seccion' => $seccion_id
         ];
     } catch (Exception $e) {
@@ -13681,7 +13745,7 @@ function cargarPermisosUsuario() {
     $user_id = $_SESSION['user']['id'];
     
     $query = "SELECT 
-        usuario, estudiante, docente, admin, super_user, 
+        usuario, estudiante, docente, admin, super_user, carrera_di,
         editar_user, editar_nota, editar_acceso, editar_valores, 
         editar_estudiante, agregar_estudiante, agregar_docente, 
         editar_docente, agregar_carrera, agregar_materia, editar_materia,
@@ -13916,6 +13980,23 @@ function actualizarPermisosUsuario($user_id, $permisos) {
         $stmt->close();
         
         if ($result) {
+            // Si se quitó el acceso de director de carrera (usuario = 0), limpiar carrera_di
+            if ($permisos_nuevos['usuario'] == 0) {
+                $db->query("UPDATE users SET carrera_di = NULL WHERE id = " . intval($user_id));
+            }
+            
+            // Si el usuario modificado es el usuario actualmente en sesión, actualizar sesión en vivo
+            if (isset($_SESSION['user']['id']) && $_SESSION['user']['id'] == $user_id) {
+                cargarPermisosUsuario();
+                if ($permisos_nuevos['usuario'] == 0) {
+                    $_SESSION['user']['carrera_di'] = null;
+                    unset($_SESSION['admin_selected_carrera_di']);
+                    if (isset($_SESSION['current_profile']) && $_SESSION['current_profile'] === 'director_de_carrera') {
+                        unset($_SESSION['current_profile']);
+                    }
+                }
+            }
+
             // REGISTRAR EN AUDITORÍA - SOLO SI HUBO CAMBIOS REALES
             if (function_exists('registrarAuditoria')) {
                 try {
@@ -20765,7 +20846,8 @@ function guardarConfiguracionCargaTrimestre($trimestre_num, $fecha_inicio, $fech
  * @param int|null $idPeriodo ID del período académico (opcional, por defecto el activo)
  * @return array ['disponible' => bool, 'mensaje' => string]
  */
-function verificarDisponibilidadTrimestre($trimestre_num, $idPeriodo = null) {
+function verificarDisponibilidadTrimestre($trimestre_num, $idPeriodo = null, $docente_id = null, $seccion_id = null, $materia_id = null) {
+    global $db;
     $config = obtenerConfiguracionCargaTrimestre($trimestre_num, $idPeriodo);
     
     if (!$config) {
@@ -20787,9 +20869,45 @@ function verificarDisponibilidadTrimestre($trimestre_num, $idPeriodo = null) {
     }
     
     if ($hoy > $fecha_fin) {
+        // Verificar si existe una prórroga extraordinaria activa de 24 horas para este docente
+        if ($docente_id && $seccion_id && $materia_id) {
+            $periodo_verif = $idPeriodo ? intval($idPeriodo) : intval($config['id_periodo']);
+            $docente_id = intval($docente_id);
+            $seccion_id = intval($seccion_id);
+            $materia_id = intval($materia_id);
+            $trimestre_num = intval($trimestre_num);
+            
+            $stmt = $db->prepare("SELECT id, habilitado_hasta FROM docente_amonestaciones 
+                                  WHERE id_docente = ? 
+                                    AND id_seccion = ? 
+                                    AND id_materia = ? 
+                                    AND id_periodo = ? 
+                                    AND trimestre_num = ? 
+                                    AND estado = 'habilitado_24h' 
+                                    AND habilitado_hasta >= NOW() 
+                                  LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param("iiiii", $docente_id, $seccion_id, $materia_id, $periodo_verif, $trimestre_num);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res && $res->num_rows > 0) {
+                    $row = $res->fetch_assoc();
+                    $stmt->close();
+                    $venceFormato = date('d/m/Y h:i A', strtotime($row['habilitado_hasta']));
+                    return [
+                        'disponible' => true,
+                        'prorroga' => true,
+                        'habilitado_hasta' => $row['habilitado_hasta'],
+                        'mensaje' => "Prórroga extraordinaria de 24h activa concedida por Control de Estudios (vence: $venceFormato)"
+                    ];
+                }
+                $stmt->close();
+            }
+        }
+        
         return [
             'disponible' => false,
-            'mensaje' => "El período de carga del Trimestre $trimestre_num finalizó el " . date('d/m/Y', strtotime($fecha_fin))
+            'mensaje' => "El período de carga del Trimestre $trimestre_num finalizó el " . date('d/m/Y', strtotime($fecha_fin)) . ". Debe acudir a Control de Estudios para solicitar prórroga."
         ];
     }
     
@@ -20798,6 +20916,407 @@ function verificarDisponibilidadTrimestre($trimestre_num, $idPeriodo = null) {
         'mensaje' => "Trimestre $trimestre_num disponible para carga (hasta " . date('d/m/Y', strtotime($fecha_fin)) . ")"
     ];
 }
+
+/**
+ * Escanea la base de datos en busca de docentes que hayan dejado pasar la fecha de carga de notas.
+ * Genera el registro de amonestación y envía mensaje interno y correo tanto al docente como a los administradores.
+ * 
+ * @param bool $forzar Si es true, ignora el límite de tiempo entre ejecuciones
+ * @return int Cantidad de amonestaciones nuevas generadas
+ */
+function verificarDocentesCargaVencida($forzar = false) {
+    global $db;
+    
+    // Evitar ejecuciones excesivas: máx 1 vez cada 5 minutos por sesión a menos que sea forzado
+    if (!$forzar && isset($_SESSION['last_verif_carga_vencida']) && (time() - $_SESSION['last_verif_carga_vencida'] < 300)) {
+        return 0;
+    }
+    $_SESSION['last_verif_carga_vencida'] = time();
+    
+    // Buscar asignaciones de docentes con fecha de carga vencida donde faltan notas
+    $sql = "SELECT 
+                sc.id AS config_carga_id,
+                sc.id_periodo,
+                sc.trimestre_num,
+                sc.fecha_fin,
+                ds.id_usuario AS id_docente,
+                ds.id_seccion,
+                ds.id_materia,
+                u.nombre AS docente_nombre,
+                u.idusuario AS docente_cedula,
+                u.email AS docente_email,
+                m.nombre_materia,
+                s.codigo_seccion,
+                p.nombre_periodo
+            FROM secretaria_configuracion_carga sc
+            JOIN periodos_academicos p ON p.id_periodo = sc.id_periodo
+            JOIN secciones s ON s.id_periodo = sc.id_periodo
+            JOIN docente_seccion ds ON ds.id_seccion = s.id_seccion AND ds.estatus = 1
+            JOIN materias m ON m.id_materia = ds.id_materia
+            JOIN users u ON u.id = ds.id_usuario
+            LEFT JOIN docente_amonestaciones da 
+                ON da.id_docente = ds.id_usuario 
+               AND da.id_seccion = ds.id_seccion 
+               AND da.id_materia = ds.id_materia 
+               AND da.id_periodo = sc.id_periodo 
+               AND da.trimestre_num = sc.trimestre_num
+            WHERE sc.activo = 1
+              AND sc.fecha_fin < CURDATE()
+              AND da.id IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM estudiante_seccion es 
+                  WHERE es.id_seccion = s.id_seccion AND (es.estatus = 'activo' OR es.estatus IS NULL)
+              )
+              AND EXISTS (
+                  SELECT 1 FROM estudiante_seccion es 
+                  WHERE es.id_seccion = s.id_seccion 
+                    AND (es.estatus = 'activo' OR es.estatus IS NULL)
+                    AND NOT EXISTS (
+                        SELECT 1 FROM notas_trimestres nt 
+                        WHERE nt.id_usuario = es.id_usuario 
+                          AND nt.id_materia = ds.id_materia 
+                          AND nt.id_periodo = sc.id_periodo 
+                          AND nt.trimestre_num = sc.trimestre_num 
+                          AND nt.nota IS NOT NULL 
+                          AND nt.estado IN ('en_revision', 'aprobada')
+                    )
+              )";
+              
+    $res = $db->query($sql);
+    if (!$res || $res->num_rows === 0) {
+        return 0;
+    }
+    
+    // Obtener administradores
+    $admins = [];
+    $sqlAdmins = "SELECT id, nombre, email FROM users WHERE admin = 1 OR user_type = 'admin'";
+    $resAdmins = $db->query($sqlAdmins);
+    if ($resAdmins) {
+        while ($adm = $resAdmins->fetch_assoc()) {
+            $admins[] = $adm;
+        }
+    }
+    
+    $sistema_remitente_id = !empty($admins[0]['id']) ? (int)$admins[0]['id'] : 1;
+    require_once __DIR__ . '/enviar_email.php';
+    
+    $procesados = 0;
+    
+    while ($row = $res->fetch_assoc()) {
+        $id_docente = (int)$row['id_docente'];
+        $id_seccion = (int)$row['id_seccion'];
+        $id_materia = (int)$row['id_materia'];
+        $id_periodo = (int)$row['id_periodo'];
+        $trimestre_num = (int)$row['trimestre_num'];
+        $fecha_limite = $row['fecha_fin'];
+        $docente_nombre = $row['docente_nombre'];
+        $docente_cedula = $row['docente_cedula'];
+        $docente_email = $row['docente_email'];
+        $materia_nombre = $row['nombre_materia'];
+        $seccion_codigo = $row['codigo_seccion'];
+        $periodo_nombre = $row['nombre_periodo'];
+        $fecha_limite_fmt = date('d/m/Y', strtotime($fecha_limite));
+        
+        // Insertar en docente_amonestaciones
+        $stmtIns = $db->prepare("INSERT INTO docente_amonestaciones 
+            (id_docente, id_seccion, id_materia, id_periodo, trimestre_num, fecha_limite, estado, fecha_alerta) 
+            VALUES (?, ?, ?, ?, ?, ?, 'pendiente_presentacion', NOW())
+            ON DUPLICATE KEY UPDATE updated_at = NOW()");
+            
+        if (!$stmtIns) continue;
+        $stmtIns->bind_param("iiiiis", $id_docente, $id_seccion, $id_materia, $id_periodo, $trimestre_num, $fecha_limite);
+        if (!$stmtIns->execute()) {
+            $stmtIns->close();
+            continue;
+        }
+        $amonestacion_id = $stmtIns->insert_id;
+        $stmtIns->close();
+        
+        if ($amonestacion_id <= 0) {
+            $checkQ = $db->query("SELECT id FROM docente_amonestaciones WHERE id_docente = $id_docente AND id_seccion = $id_seccion AND id_materia = $id_materia AND id_periodo = $id_periodo AND trimestre_num = $trimestre_num LIMIT 1");
+            if ($checkQ && $cRow = $checkQ->fetch_assoc()) {
+                $amonestacion_id = (int)$cRow['id'];
+            }
+        }
+        
+        // 1. Mensajes y Correos a Administradores
+        $tituloAdmin = "⚠️ Plazo Vencido: Docente $docente_nombre ($materia_nombre - Sec. $seccion_codigo)";
+        $cuerpoAdmin = "NOTIFICACIÓN OFICIAL DE CONTROL DE ESTUDIOS\n"
+                     . "Fecha de Alerta: " . date('d/m/Y h:i A') . "\n\n"
+                     . "Se ha detectado el vencimiento del plazo reglamentario para la carga de notas sin que el docente completara el registro en el sistema:\n\n"
+                     . "• Docente: $docente_nombre (C.I: $docente_cedula)\n"
+                     . "• Correo: $docente_email\n"
+                     . "• Asignatura: $materia_nombre\n"
+                     . "• Sección: $seccion_codigo\n"
+                     . "• Período Académico: $periodo_nombre\n"
+                     . "• Trimestre: $trimestre_num\n"
+                     . "• Fecha Límite Vencida: $fecha_limite_fmt\n\n"
+                     . "El docente ha sido notificado formalmente por mensajería y correo electrónico indicándole que debe comparecer ante la Dirección de Control de Estudios.\n\n"
+                     . "Desde este mensaje puede generar el Formato de Amonestación oficial y habilitar la prórroga extraordinaria de 24 horas una vez el docente comparezca:\n\n"
+                     . "[AMONESTACION_ACTION:$amonestacion_id]";
+                     
+        foreach ($admins as $adm) {
+            enviarMensaje($sistema_remitente_id, (int)$adm['id'], $tituloAdmin, $cuerpoAdmin);
+            
+            if (!empty($adm['email'])) {
+                $htmlEmailAdmin = "
+                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;'>
+                    <div style='background-color: #dc3545; color: #ffffff; padding: 18px 24px; text-align: center;'>
+                        <h2 style='margin: 0; font-size: 20px;'>Control de Estudios - Alerta de Carga Vencida</h2>
+                    </div>
+                    <div style='padding: 24px; background-color: #ffffff; color: #333333;'>
+                        <p>Estimado(a) Administrador(a) <strong>" . htmlspecialchars($adm['nombre']) . "</strong>,</p>
+                        <p>Se informa que el siguiente docente ha superado la fecha límite de carga de notas sin haber registrado las calificaciones correspondientes:</p>
+                        <table style='width: 100%; border-collapse: collapse; margin: 16px 0; background-color: #f8f9fa;'>
+                            <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Docente:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($docente_nombre) . " (C.I: " . htmlspecialchars($docente_cedula) . ")</td></tr>
+                            <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Asignatura:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($materia_nombre) . "</td></tr>
+                            <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Sección:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($seccion_codigo) . "</td></tr>
+                            <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Período / Trimestre:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($periodo_nombre) . " - Trimestre " . $trimestre_num . "</td></tr>
+                            <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Fecha Límite Vencida:</td><td style='padding: 8px; border: 1px solid #dee2e6; color: #dc3545; font-weight: bold;'>" . $fecha_limite_fmt . "</td></tr>
+                        </table>
+                        <p>El docente ha sido instruido a acudir personalmente a Control de Estudios para formalizar el acta de amonestación.</p>
+                        <div style='text-align: center; margin: 25px 0;'>
+                            <a href='http://" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "/control_de_estudio/admin/generar_amonestacion_pdf.php?id=$amonestacion_id' style='background-color: #dc3545; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;'>Descargar Formato de Amonestación (PDF)</a>
+                        </div>
+                    </div>
+                </div>";
+                @enviarEmail($adm['email'], $adm['nombre'], "[Control de Estudios] Plazo Vencido: $docente_nombre ($materia_nombre)", $htmlEmailAdmin);
+            }
+        }
+        
+        // 2. Mensaje y Correo al Docente
+        $tituloDocente = "⚠️ URGENTE: Plazo de Carga Vencido - Comparecencia en Control de Estudios";
+        $cuerpoDocente = "Estimado(a) Profesor(a) $docente_nombre,\n\n"
+                       . "Le informamos que el plazo reglamentario para la carga y entrega de notas ha finalizado sin que se haya completado el registro en el sistema:\n\n"
+                       . "• Asignatura: $materia_nombre\n"
+                       . "• Sección: $seccion_codigo\n"
+                       . "• Período Académico: $periodo_nombre\n"
+                       . "• Trimestre: $trimestre_num\n"
+                       . "• Fecha Límite establecida: $fecha_limite_fmt\n\n"
+                       . "El sistema ha bloqueado el acceso a la carga ordinaria de notas y se ha abierto un expediente administrativo de amonestación.\n\n"
+                       . "ACCIÓN OBLIGATORIA:\n"
+                       . "Debe presentarse a la brevedad ante la Dirección de Control de Estudios para justificar su situación y firmar el acta correspondiente. Una vez formalizada su comparecencia, el personal de Control de Estudios le habilitará una prórroga extraordinaria de 24 horas continuas para que proceda con la carga de las notas.\n\n"
+                       . "Atentamente,\nDirección de Control de Estudios\nUniversidad Politécnica Territorial de Puerto Cabello";
+                       
+        enviarMensaje($sistema_remitente_id, $id_docente, $tituloDocente, $cuerpoDocente);
+        
+        if (!empty($docente_email)) {
+            $htmlEmailDocente = "
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;'>
+                <div style='background-color: #ffc107; color: #212529; padding: 18px 24px; text-align: center;'>
+                    <h2 style='margin: 0; font-size: 20px;'>UPTPC - Notificación Urgente de Control de Estudios</h2>
+                </div>
+                <div style='padding: 24px; background-color: #ffffff; color: #333333;'>
+                    <p>Estimado(a) Profesor(a) <strong>" . htmlspecialchars($docente_nombre) . "</strong>,</p>
+                    <p style='color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 12px; border-radius: 4px;'>
+                        <strong>AVISO URGENTE:</strong> El plazo institucional para la carga de calificaciones ha finalizado para su sección y el sistema ha bloqueado el acceso ordinario.
+                    </p>
+                    <table style='width: 100%; border-collapse: collapse; margin: 16px 0; background-color: #f8f9fa;'>
+                        <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Asignatura:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($materia_nombre) . "</td></tr>
+                        <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Sección:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($seccion_codigo) . "</td></tr>
+                        <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Período / Trimestre:</td><td style='padding: 8px; border: 1px solid #dee2e6;'>" . htmlspecialchars($periodo_nombre) . " - Trimestre " . $trimestre_num . "</td></tr>
+                        <tr><td style='padding: 8px; border: 1px solid #dee2e6; font-weight: bold;'>Fecha Límite Vencida:</td><td style='padding: 8px; border: 1px solid #dee2e6; color: #dc3545; font-weight: bold;'>" . $fecha_limite_fmt . "</td></tr>
+                    </table>
+                    <p><strong>INSTRUCCIONES DE COMPARECENCIA:</strong></p>
+                    <p>Debe acudir inmediatamente a la oficina de Control de Estudios para formalizar el acta de amonestación y justificar el retraso. Tras su comparecencia presencial, Control de Estudios le habilitará un plazo de gracia de <strong>veinticuatro (24) horas continuas</strong> para que proceda a subir las notas pendientes al sistema.</p>
+                    <p style='font-size: 13px; color: #6c757d; margin-top: 25px;'>
+                        Dirección de Control de Estudios<br>
+                        Universidad Politécnica Territorial de Puerto Cabello
+                    </p>
+                </div>
+            </div>";
+            @enviarEmail($docente_email, $docente_nombre, "URGENTE: Plazo de Carga Vencido - Comparecencia en Control de Estudios", $htmlEmailDocente);
+        }
+        
+        $procesados++;
+    }
+    
+    return $procesados;
+}
+
+/**
+ * Habilita 24 horas continuas a un docente amonestado para que cargue sus notas.
+ * Actualiza el registro en docente_amonestaciones y notifica al docente por mensaje y correo.
+ */
+function habilitarDocente24Horas($amonestacion_id, $admin_id) {
+    global $db;
+    $amonestacion_id = intval($amonestacion_id);
+    $admin_id = intval($admin_id);
+    
+    $info = obtenerAmonestacionPorId($amonestacion_id);
+    if (!$info) {
+        return ['success' => false, 'message' => 'Registro de amonestación no encontrado.'];
+    }
+    
+    $stmt = $db->prepare("UPDATE docente_amonestaciones SET 
+        estado = 'habilitado_24h', 
+        habilitado_hasta = DATE_ADD(NOW(), INTERVAL 24 HOUR), 
+        habilitado_por = ?, 
+        fecha_habilitacion = NOW() 
+        WHERE id = ?");
+        
+    if (!$stmt) {
+        return ['success' => false, 'message' => 'Error al preparar la actualización: ' . $db->error];
+    }
+    
+    $stmt->bind_param("ii", $admin_id, $amonestacion_id);
+    $ok = $stmt->execute();
+    $stmt->close();
+    
+    if (!$ok) {
+        return ['success' => false, 'message' => 'No se pudo actualizar el estado de habilitación.'];
+    }
+    
+    $qCheck = $db->query("SELECT habilitado_hasta FROM docente_amonestaciones WHERE id = $amonestacion_id");
+    $rowCheck = $qCheck ? $qCheck->fetch_assoc() : null;
+    $hastaFmt = $rowCheck ? date('d/m/Y h:i A', strtotime($rowCheck['habilitado_hasta'])) : '24 horas continuas';
+    
+    $docente_id = (int)$info['id_docente'];
+    $docente_nombre = $info['docente_nombre'];
+    $docente_email = $info['docente_email'];
+    $materia = $info['nombre_materia'];
+    $seccion = $info['codigo_seccion'];
+    
+    $tituloDoc = "✅ PRÓRROGA HABILITADA: 24 Horas para Carga de Notas ($materia - Sec. $seccion)";
+    $cuerpoDoc = "Estimado(a) Profesor(a) $docente_nombre,\n\n"
+               . "Con motivo de su comparecencia ante la Dirección de Control de Estudios, se le ha habilitado una prórroga extraordinaria de 24 horas continuas para la carga de calificaciones:\n\n"
+               . "• Asignatura: $materia\n"
+               . "• Sección: $seccion\n"
+               . "• Trimestre: " . $info['trimestre_num'] . "\n"
+               . "• Período: " . $info['nombre_periodo'] . "\n"
+               . "• Válido hasta: $hastaFmt\n\n"
+               . "Por favor ingrese de inmediato al módulo docente para registrar y guardar las notas correspondientes antes del vencimiento de este lapso improrrogable.\n\n"
+               . "Atentamente,\nDirección de Control de Estudios\nUPTPC";
+               
+    enviarMensaje($admin_id, $docente_id, $tituloDoc, $cuerpoDoc);
+    
+    if (!empty($docente_email)) {
+        require_once __DIR__ . '/enviar_email.php';
+        $htmlEmail = "
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;'>
+            <div style='background-color: #28a745; color: #ffffff; padding: 18px 24px; text-align: center;'>
+                <h2 style='margin: 0; font-size: 20px;'>UPTPC - Prórroga de 24 Horas Habilitada</h2>
+            </div>
+            <div style='padding: 24px; background-color: #ffffff; color: #333333;'>
+                <p>Estimado(a) Profesor(a) <strong>" . htmlspecialchars($docente_nombre) . "</strong>,</p>
+                <p>Tras su comparecencia presencial, Control de Estudios le ha otorgado una <strong>prórroga extraordinaria de 24 horas continuas</strong> para la carga de notas en el sistema:</p>
+                <div style='background-color: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 6px; padding: 15px; margin: 15px 0;'>
+                    <p style='margin: 5px 0;'><strong>Asignatura:</strong> " . htmlspecialchars($materia) . "</p>
+                    <p style='margin: 5px 0;'><strong>Sección:</strong> " . htmlspecialchars($seccion) . "</p>
+                    <p style='margin: 5px 0;'><strong>Trimestre:</strong> " . $info['trimestre_num'] . " (Período " . htmlspecialchars($info['nombre_periodo']) . ")</p>
+                    <p style='margin: 5px 0; color: #155724; font-size: 16px;'><strong>Habilitado hasta:</strong> <u>" . $hastaFmt . "</u></p>
+                </div>
+                <p>Por favor ingrese de inmediato a su perfil docente y guarde las notas pendientes antes de que expire la prórroga.</p>
+            </div>
+        </div>";
+        @enviarEmail($docente_email, $docente_nombre, "Prórroga Habilitada: 24 Horas para Carga de Notas ($materia)", $htmlEmail);
+    }
+    
+    if (function_exists('registrarAuditoria')) {
+        registrarAuditoria("UPDATE", "docente_amonestaciones", $amonestacion_id, null, ['estado' => 'habilitado_24h', 'hasta' => $hastaFmt], "Amonestaciones", "Habilitadas 24h para docente $docente_nombre");
+    }
+    
+    return [
+        'success' => true,
+        'message' => "Se ha concedido una prórroga de 24 horas al docente exitosamente. Estará habilitado hasta el $hastaFmt.",
+        'habilitado_hasta' => $hastaFmt
+    ];
+}
+
+/**
+ * Obtiene la información detallada de una amonestación docente por su ID
+ */
+function obtenerAmonestacionPorId($amonestacion_id) {
+    global $db;
+    $id = intval($amonestacion_id);
+    if ($id <= 0) return null;
+    
+    $sql = "SELECT da.*,
+                   u.nombre AS docente_nombre,
+                   u.idusuario AS docente_cedula,
+                   u.email AS docente_email,
+                   u.tlf AS docente_telefono,
+                   m.nombre_materia,
+                   m.cod_materia,
+                   s.codigo_seccion,
+                   s.turno,
+                   c.nombre_carrera,
+                   c.nombre_carrera AS carrera_nombre,
+                   p.nombre_periodo,
+                   adm.nombre AS habilitado_por_nombre
+            FROM docente_amonestaciones da
+            JOIN users u ON u.id = da.id_docente
+            JOIN secciones s ON s.id_seccion = da.id_seccion
+            JOIN materias m ON m.id_materia = da.id_materia
+            JOIN periodos_academicos p ON p.id_periodo = da.id_periodo
+            LEFT JOIN carreras c ON c.id_carrera = s.id_carrera
+            LEFT JOIN users adm ON adm.id = da.habilitado_por
+            WHERE da.id = $id
+            LIMIT 1";
+            
+    $res = $db->query($sql);
+    return ($res && $res->num_rows > 0) ? $res->fetch_assoc() : null;
+}
+
+/**
+ * Obtiene el listado completo de amonestaciones docentes con filtros opcionales
+ */
+function obtenerTodasAmonestaciones($filtro_estado = null, $id_periodo = null) {
+    global $db;
+    $where = [];
+    if (!empty($filtro_estado)) {
+        $filtro_estado = $db->real_escape_string($filtro_estado);
+        $where[] = "da.estado = '$filtro_estado'";
+    }
+    if (!empty($id_periodo)) {
+        $id_periodo = intval($id_periodo);
+        $where[] = "da.id_periodo = $id_periodo";
+    }
+    
+    $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+    
+    $sql = "SELECT da.*,
+                   u.nombre AS docente_nombre,
+                   u.idusuario AS docente_cedula,
+                   u.email AS docente_email,
+                   m.nombre_materia,
+                   m.cod_materia,
+                   s.codigo_seccion,
+                   c.nombre_carrera,
+                   c.nombre_carrera AS carrera_nombre,
+                   p.nombre_periodo,
+                   adm.nombre AS habilitado_por_nombre
+            FROM docente_amonestaciones da
+            JOIN users u ON u.id = da.id_docente
+            JOIN secciones s ON s.id_seccion = da.id_seccion
+            JOIN materias m ON m.id_materia = da.id_materia
+            JOIN periodos_academicos p ON p.id_periodo = da.id_periodo
+            LEFT JOIN carreras c ON c.id_carrera = s.id_carrera
+            LEFT JOIN users adm ON adm.id = da.habilitado_por
+            $whereSql
+            ORDER BY da.created_at DESC";
+            
+    $res = $db->query($sql);
+    $lista = [];
+    if ($res) {
+        while ($r = $res->fetch_assoc()) {
+            $lista[] = $r;
+        }
+    }
+    return $lista;
+}
+
+/**
+ * Marca que el formato de amonestación PDF fue generado/descargado
+ */
+function marcarAmonestacionGenerada($amonestacion_id) {
+    global $db;
+    $id = intval($amonestacion_id);
+    if ($id > 0) {
+        $db->query("UPDATE docente_amonestaciones SET amonestacion_generada = 1, fecha_amonestacion = NOW() WHERE id = $id");
+    }
+}
+
 
 
 
@@ -23419,11 +23938,7 @@ function isDirectorCarrera()
     if (!isset($_SESSION['user']) || !is_array($_SESSION['user'])) {
         return false;
     }
-    return (
-        (!empty($_SESSION['user']['usuario']) && $_SESSION['user']['usuario'] == 1) ||
-        (!empty($_SESSION['user']['carrera_di']) && intval($_SESSION['user']['carrera_di']) > 0) ||
-        (!empty($_SESSION['user']['director']) && $_SESSION['user']['director'] == 1)
-    );
+    return (!empty($_SESSION['user']['usuario']) && $_SESSION['user']['usuario'] == 1);
 }
 
 
@@ -24730,9 +25245,382 @@ function obtenerSolicitudAcademicaPorId($id_solicitud) {
 }
 
 /**
+ * Verifica si un estudiante ha aprobado una materia en cualquiera de las fuentes oficiales
+ * (notas_definitivas, notas_trimestres o estudiante_materias).
+ * Regla: Nota mínima aprobatoria 12 puntos; proyectos 16 puntos.
+ */
+function esMateriaAprobadaEstudiante($id_usuario, $id_materia, $es_proyecto = false) {
+    global $db;
+    $id_usuario = intval($id_usuario);
+    $id_materia = intval($id_materia);
+    $nota_minima = $es_proyecto ? 16.0 : 12.0;
+
+    // 1. notas_definitivas
+    $res_def = $db->query("SELECT nota_final FROM notas_definitivas WHERE id_usuario = $id_usuario AND id_materia = $id_materia AND nota_final IS NOT NULL ORDER BY nota_final DESC LIMIT 1");
+    if ($res_def && $row_def = $res_def->fetch_assoc()) {
+        if ($row_def['nota_final'] !== null && floatval($row_def['nota_final']) >= $nota_minima) {
+            return true;
+        }
+    }
+
+    // 2. notas_trimestres
+    if (function_exists('obtenerNotaFinalMateria')) {
+        $nota_prom = obtenerNotaFinalMateria($id_usuario, $id_materia);
+        if ($nota_prom !== null && floatval($nota_prom) >= $nota_minima) {
+            return true;
+        }
+    }
+
+    // 3. estudiante_materias
+    $res_em = $db->query("SELECT nota_final, estatus FROM estudiante_materias WHERE id_usuario = $id_usuario AND id_materia = $id_materia ORDER BY id_inscripcion DESC LIMIT 1");
+    if ($res_em && $row_em = $res_em->fetch_assoc()) {
+        if ($row_em['nota_final'] !== null && floatval($row_em['nota_final']) >= $nota_minima) {
+            return true;
+        }
+        if (in_array(strtolower($row_em['estatus'] ?? ''), ['aprobado', 'aprobada'])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Verifica exhaustivamente si el estudiante posee título de TSU.
+ */
+function verificarTituloTSUCompleto($id_usuario) {
+    global $db;
+    $id_usuario = intval($id_usuario);
+
+    // A. En graduados
+    $res_grad = $db->query("SELECT id FROM graduados WHERE id_usuario = $id_usuario AND estado = 'graduado' LIMIT 1");
+    if ($res_grad && $res_grad->num_rows > 0) return true;
+
+    // B. En users
+    $res_u = $db->query("SELECT titulos, es_prosecucion, tomo, folio FROM users WHERE id = $id_usuario LIMIT 1");
+    if ($res_u && $row_u = $res_u->fetch_assoc()) {
+        if (!empty($row_u['es_prosecucion']) && intval($row_u['es_prosecucion']) === 1) return true;
+        if (!empty($row_u['titulos']) && stripos($row_u['titulos'], 'tsu') !== false) return true;
+        if (!empty($row_u['tomo']) && !empty($row_u['folio'])) return true;
+    }
+    return false;
+}
+
+/**
+ * Determina el trayecto académico correspondiente a un estudiante según las condiciones para avanzar:
+ * - Trayecto 0 → Trayecto 1: Aprobar el 50% de las materias del trayecto 0
+ * - Trayecto 1 → Trayecto 2: Aprobar Proyecto Socio Integrador (nota ≥ 16)
+ * - Trayecto 2 → Trayecto 3: Aprobar todas las materias y obtener primer título (TSU)
+ * - Trayecto 3 → Trayecto 4: Aprobar Proyecto Socio Integrador (nota ≥ 16)
+ * - Trayecto 4: Último trayecto, no puede avanzar más
+ */
+function determinarTrayectoEstudianteSegunRequisitos($id_usuario, $id_carrera = null) {
+    global $db;
+    $id_usuario = intval($id_usuario);
+    if (!$id_carrera) {
+        $res_u = $db->query("SELECT carrera FROM users WHERE id = $id_usuario LIMIT 1");
+        if ($res_u && $row_u = $res_u->fetch_assoc()) {
+            $id_carrera = intval($row_u['carrera']);
+        }
+    }
+    $id_carrera = intval($id_carrera);
+
+    $is_proj = function($mat) {
+        if (!empty($mat['es_proyecto_socio'])) return true;
+        $nom = mb_strtolower($mat['nombre_materia'] ?? '');
+        return (strpos($nom, 'proyecto') !== false || strpos($nom, 'socio integrador') !== false || strpos($nom, 'sociointegrador') !== false);
+    };
+
+    // 1. TRAYECTO 0 (Trayecto Inicial)
+    $materias_t0 = obtenerMateriasPorTrayecto($id_carrera, 0);
+    $total_t0 = count($materias_t0);
+    if ($total_t0 > 0) {
+        $aprobadas_t0 = 0;
+        foreach ($materias_t0 as $m) {
+            if (esMateriaAprobadaEstudiante($id_usuario, $m['id_materia'], $is_proj($m))) {
+                $aprobadas_t0++;
+            }
+        }
+        $porc_t0 = ($aprobadas_t0 / $total_t0) * 100;
+        if ($porc_t0 < 50) {
+            return [
+                'numero_trayecto' => 0,
+                'motivo' => "Debe cursar Trayecto Inicial (0). Aprobó $aprobadas_t0 de $total_t0 materias (" . round($porc_t0, 1) . "% < 50% requerido).",
+                'detalles' => ['aprobadas' => $aprobadas_t0, 'total' => $total_t0, 'porcentaje' => round($porc_t0, 1)]
+            ];
+        }
+    }
+
+    // 2. TRAYECTO 1
+    // Condición: Aprobar Proyecto Socio Integrador (nota ≥ 16) para pasar a T2
+    $proyecto_t1 = null;
+    if (function_exists('obtenerProyectoSocioIntegrador')) {
+        $proyecto_t1 = obtenerProyectoSocioIntegrador($id_carrera, 1);
+    }
+    if (!$proyecto_t1) {
+        $materias_t1 = obtenerMateriasPorTrayecto($id_carrera, 1);
+        foreach ($materias_t1 as $m) {
+            if ($is_proj($m)) { $proyecto_t1 = $m; break; }
+        }
+    }
+
+    $aprobado_psi_t1 = false;
+    if ($proyecto_t1) {
+        $aprobado_psi_t1 = esMateriaAprobadaEstudiante($id_usuario, $proyecto_t1['id_materia'], true);
+    } else {
+        $aprobado_psi_t1 = true;
+    }
+
+    if (!$aprobado_psi_t1) {
+        return [
+            'numero_trayecto' => 1,
+            'motivo' => "Debe cursar Trayecto 1. No ha aprobado Proyecto Socio Integrador con nota mínima de 16 puntos.",
+            'detalles' => ['proyecto' => $proyecto_t1['nombre_materia'] ?? 'Proyecto Socio Integrador T1', 'aprobado' => false]
+        ];
+    }
+
+    // 3. TRAYECTO 2
+    // Condición: Aprobar todas las materias y obtener primer título (TSU) para pasar a T3
+    $tiene_tsu = verificarTituloTSUCompleto($id_usuario);
+    $materias_hasta_t2 = obtenerMateriasPorTrayecto($id_carrera, 0, 1, 2);
+    $total_t2 = count($materias_hasta_t2);
+    $aprobadas_t2 = 0;
+    $pendientes_t2 = [];
+    foreach ($materias_hasta_t2 as $m) {
+        if (esMateriaAprobadaEstudiante($id_usuario, $m['id_materia'], $is_proj($m))) {
+            $aprobadas_t2++;
+        } else {
+            $pendientes_t2[] = $m['nombre_materia'];
+        }
+    }
+
+    if ($aprobadas_t2 < $total_t2 || !$tiene_tsu) {
+        $motivo_t2 = "Debe cursar Trayecto 2.";
+        if ($aprobadas_t2 < $total_t2) {
+            $motivo_t2 .= " Faltan " . ($total_t2 - $aprobadas_t2) . " materias por aprobar de Trayectos 1 y 2.";
+        }
+        if (!$tiene_tsu) {
+            $motivo_t2 .= " Primer título (TSU) pendiente de registro.";
+        }
+        return [
+            'numero_trayecto' => 2,
+            'motivo' => $motivo_t2,
+            'detalles' => ['aprobadas' => $aprobadas_t2, 'total' => $total_t2, 'pendientes' => $pendientes_t2, 'tiene_tsu' => $tiene_tsu]
+        ];
+    }
+
+    // 4. TRAYECTO 3
+    // Condición: Aprobar Proyecto Socio Integrador (nota ≥ 16) para pasar a T4
+    $proyecto_t3 = null;
+    if (function_exists('obtenerProyectoSocioIntegrador')) {
+        $proyecto_t3 = obtenerProyectoSocioIntegrador($id_carrera, 3);
+    }
+    if (!$proyecto_t3) {
+        $materias_t3 = obtenerMateriasPorTrayecto($id_carrera, 3);
+        foreach ($materias_t3 as $m) {
+            if ($is_proj($m)) { $proyecto_t3 = $m; break; }
+        }
+    }
+
+    $aprobado_psi_t3 = false;
+    if ($proyecto_t3) {
+        $aprobado_psi_t3 = esMateriaAprobadaEstudiante($id_usuario, $proyecto_t3['id_materia'], true);
+    } else {
+        $aprobado_psi_t3 = true;
+    }
+
+    if (!$aprobado_psi_t3) {
+        return [
+            'numero_trayecto' => 3,
+            'motivo' => "Debe cursar Trayecto 3. No ha aprobado Proyecto Socio Integrador con nota mínima de 16 puntos.",
+            'detalles' => ['proyecto' => $proyecto_t3['nombre_materia'] ?? 'Proyecto Socio Integrador T3', 'aprobado' => false]
+        ];
+    }
+
+    // 5. TRAYECTO 4
+    return [
+        'numero_trayecto' => 4,
+        'motivo' => "Asignado a Trayecto 4 (Último trayecto académico de la carrera).",
+        'detalles' => ['trayecto_final' => true]
+    ];
+}
+
+/**
+ * Inscribe las materias de un estudiante reincorporado cumpliendo las reglas:
+ * - Solo se inscriben materias NO inscritas actualmente en el mismo período.
+ * - No inscribe materias ya aprobadas (>=12 regular, >=16 proyecto).
+ */
+function inscribirMateriasEstudianteReincorporacion($id_usuario, $id_seccion, $id_periodo, $id_carrera, $numero_trayecto) {
+    global $db;
+    $id_usuario = intval($id_usuario);
+    $id_seccion = intval($id_seccion);
+    $id_periodo = intval($id_periodo);
+    $id_carrera = intval($id_carrera);
+    $numero_trayecto = intval($numero_trayecto);
+
+    $materias = obtenerMateriasPorTrayecto($id_carrera, $numero_trayecto);
+    $inscritas = 0;
+
+    $is_proj = function($mat) {
+        if (!empty($mat['es_proyecto_socio'])) return true;
+        $nom = mb_strtolower($mat['nombre_materia'] ?? '');
+        return (strpos($nom, 'proyecto') !== false || strpos($nom, 'socio integrador') !== false || strpos($nom, 'sociointegrador') !== false);
+    };
+
+    foreach ($materias as $materia) {
+        $id_materia = intval($materia['id_materia']);
+        $es_proyecto = $is_proj($materia);
+
+        if (esMateriaAprobadaEstudiante($id_usuario, $id_materia, $es_proyecto)) {
+            continue;
+        }
+
+        $chk = $db->query("SELECT id_inscripcion FROM estudiante_materias WHERE id_usuario = $id_usuario AND id_materia = $id_materia AND id_periodo = $id_periodo AND estatus = 'activo'");
+        if ($chk && $chk->num_rows > 0) {
+            continue;
+        }
+
+        $stmt_ins = $db->prepare("INSERT INTO estudiante_materias (id_usuario, id_materia, id_seccion, id_periodo, fecha_inscripcion, estatus) VALUES (?, ?, ?, ?, NOW(), 'activo') ON DUPLICATE KEY UPDATE id_seccion = ?, estatus = 'activo'");
+        $stmt_ins->bind_param("iiiii", $id_usuario, $id_materia, $id_seccion, $id_periodo, $id_seccion);
+        $stmt_ins->execute();
+        $stmt_ins->close();
+
+        $chk_not = $db->query("SELECT id FROM notas_definitivas WHERE id_usuario = $id_usuario AND id_materia = $id_materia AND id_periodo = $id_periodo");
+        if ($chk_not && $chk_not->num_rows == 0) {
+            $col_t = "trayecto_" . $numero_trayecto;
+            $stmt_not = $db->prepare("INSERT INTO notas_definitivas (id_usuario, id_materia, id_periodo, fecha_registro, $col_t) VALUES (?, ?, ?, NOW(), NULL)");
+            $stmt_not->bind_param("iii", $id_usuario, $id_materia, $id_periodo);
+            $stmt_not->execute();
+            $stmt_not->close();
+        }
+
+        $inscritas++;
+    }
+
+    return $inscritas;
+}
+
+/**
+ * Busca una sección aprobada con cupos disponibles para un período, carrera y trayecto.
+ */
+function buscarSeccionDisponibleReincorporacion($id_periodo, $id_carrera, $numero_trayecto, $turno_preferido = null) {
+    global $db;
+    $id_periodo = intval($id_periodo);
+    $id_carrera = intval($id_carrera);
+    $numero_trayecto = intval($numero_trayecto);
+
+    $res_t = $db->query("SELECT id_trayecto FROM trayectos WHERE numero_trayecto = $numero_trayecto LIMIT 1");
+    if (!$res_t || $res_t->num_rows == 0) return null;
+    $id_trayecto = intval($res_t->fetch_assoc()['id_trayecto']);
+
+    $order_turno = !empty($turno_preferido) ? "(s.turno = '" . $db->real_escape_string($turno_preferido) . "') DESC, " : "";
+    $sql = "SELECT s.id_seccion, s.codigo_seccion, s.capacidad_maxima, s.turno, s.estatus,
+                   (SELECT COUNT(*) FROM estudiante_seccion es WHERE es.id_seccion = s.id_seccion AND es.estatus = 'activo') as inscritos
+            FROM secciones s
+            WHERE s.id_periodo = $id_periodo
+              AND s.id_carrera = $id_carrera
+              AND s.id_trayecto = $id_trayecto
+              AND s.status = 'Aprobada'
+              AND s.estatus != 'inactiva'
+            ORDER BY $order_turno
+                     (s.capacidad_maxima - (SELECT COUNT(*) FROM estudiante_seccion es2 WHERE es2.id_seccion = s.id_seccion AND es2.estatus = 'activo')) DESC";
+
+    $result = $db->query($sql);
+    if ($result && $result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $capacidad = intval($row['capacidad_maxima']);
+            $inscritos = intval($row['inscritos']);
+            if ($inscritos < $capacidad) {
+                return $row;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Asigna automáticamente estudiantes que quedaron en lista de espera de reincorporación a una sección recién creada/habilitada.
+ */
+function asignarEstudiantesReincorporacionPendientesASeccion($id_seccion) {
+    global $db;
+    $id_seccion = intval($id_seccion);
+    $res_sec = $db->query("SELECT s.*, t.numero_trayecto 
+                           FROM secciones s 
+                           JOIN trayectos t ON s.id_trayecto = t.id_trayecto 
+                           WHERE s.id_seccion = $id_seccion LIMIT 1");
+    if (!$res_sec || $res_sec->num_rows == 0) return 0;
+    $seccion = $res_sec->fetch_assoc();
+
+    $id_periodo = intval($seccion['id_periodo']);
+    $id_carrera = intval($seccion['id_carrera']);
+    $numero_trayecto = intval($seccion['numero_trayecto']);
+    $capacidad = intval($seccion['capacidad_maxima']);
+
+    $res_ins = $db->query("SELECT COUNT(*) as inscritos FROM estudiante_seccion WHERE id_seccion = $id_seccion AND estatus = 'activo'");
+    $inscritos = ($res_ins && $row_ins = $res_ins->fetch_assoc()) ? intval($row_ins['inscritos']) : 0;
+    $cupos_disp = $capacidad - $inscritos;
+    if ($cupos_disp <= 0) return 0;
+
+    $sql_pend = "SELECT id, estudiante_id, materias_data, observacion_admin 
+                 FROM solicitudes_academicas 
+                 WHERE tipo_solicitud = 'constancia_reincorporacion' 
+                   AND status = 'aprobada' 
+                   AND id_carrera = $id_carrera 
+                   AND id_periodo = $id_periodo
+                   AND materias_data LIKE '%esperando_seccion%'
+                 ORDER BY fecha_procesado ASC, id ASC";
+
+    $res_pend = $db->query($sql_pend);
+    if (!$res_pend || $res_pend->num_rows == 0) return 0;
+
+    $asignados = 0;
+    while ($row = $res_pend->fetch_assoc()) {
+        if ($asignados >= $cupos_disp) break;
+
+        $estudiante_id = intval($row['estudiante_id']);
+        $sol_id = intval($row['id']);
+        $materias_data = json_decode($row['materias_data'], true);
+        if (!$materias_data || !is_array($materias_data)) continue;
+
+        if (($materias_data['reincorporacion_estado'] ?? '') !== 'esperando_seccion') continue;
+
+        $trayecto_est = isset($materias_data['trayecto_determinado']) ? intval($materias_data['trayecto_determinado']) : null;
+        if ($trayecto_est !== $numero_trayecto) continue;
+
+        $db->query("UPDATE estudiante_seccion SET estatus = 'retirado' WHERE id_usuario = $estudiante_id AND estatus = 'activo'");
+
+        $db->query("INSERT INTO estudiante_seccion (id_usuario, id_seccion, fecha_inscripcion, estatus) 
+                    VALUES ($estudiante_id, $id_seccion, CURDATE(), 'activo') 
+                    ON DUPLICATE KEY UPDATE estatus = 'activo', fecha_inscripcion = CURDATE()");
+
+        $cant_mats = inscribirMateriasEstudianteReincorporacion($estudiante_id, $id_seccion, $id_periodo, $id_carrera, $numero_trayecto);
+
+        $materias_data['reincorporacion_estado'] = 'asignado_automaticamente';
+        $materias_data['id_seccion_asignada'] = $id_seccion;
+        $materias_data['codigo_seccion_asignada'] = $seccion['codigo_seccion'];
+        $materias_data['fecha_asignacion_automatica'] = date('Y-m-d H:i:s');
+        $materias_data['materias_inscritas_count'] = $cant_mats;
+
+        $json_up = json_encode($materias_data, JSON_UNESCAPED_UNICODE);
+        $obs_nueva = ($row['observacion_admin'] ?? '') . " | [Ingreso automático: Asignado a la sección {$seccion['codigo_seccion']} el " . date('d/m/Y H:i') . " con $cant_mats materias inscritas].";
+
+        $stmt_up = $db->prepare("UPDATE solicitudes_academicas SET materias_data = ?, observacion_admin = ? WHERE id = ?");
+        $stmt_up->bind_param("ssi", $json_up, $obs_nueva, $sol_id);
+        $stmt_up->execute();
+        $stmt_up->close();
+
+        $db->query("UPDATE users SET status = 1 WHERE id = $estudiante_id");
+
+        $asignados++;
+    }
+
+    return $asignados;
+}
+
+/**
  * Procesa y ejecuta la aprobación automática de una solicitud académica.
  */
-function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observacion = '') {
+function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observacion = '', $id_periodo_reincorporacion = null) {
     global $db;
     $solicitud = obtenerSolicitudAcademicaPorId($id_solicitud);
     if (!$solicitud) {
@@ -24747,6 +25635,7 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
     $id_carrera = intval($solicitud['id_carrera']);
     $tipo = $solicitud['tipo_solicitud'];
     $materias_data = $solicitud['materias_parsed'];
+    $mensaje_personalizado_exito = '';
     
     $db->begin_transaction();
     try {
@@ -24769,7 +25658,6 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
             // B) Procesar Adiciones
             $materias_adicionar = $materias_data['adiciones'] ?? [];
             if (!empty($materias_adicionar) && is_array($materias_adicionar)) {
-                // Obtener sección del estudiante si existe
                 $seccion_id = 0;
                 $res_sec = $db->query("SELECT id_seccion FROM estudiante_seccion WHERE id_usuario = $estudiante_id AND estatus = 'activo' ORDER BY fecha_inscripcion DESC LIMIT 1");
                 if ($res_sec && $row_sec = $res_sec->fetch_assoc()) {
@@ -24779,11 +25667,9 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
                 foreach ($materias_adicionar as $mat) {
                     $id_mat = is_array($mat) ? intval($mat['id']) : intval($mat);
                     if ($id_mat > 0) {
-                        // Obtener trayecto de la materia
                         $res_m = $db->query("SELECT trayecto FROM materias WHERE id_materia = $id_mat LIMIT 1");
                         $trayecto_m = ($res_m && $row_m = $res_m->fetch_assoc()) ? intval($row_m['trayecto']) : 0;
                         
-                        // Insertar o actualizar en estudiante_materias
                         $stmt_chk = $db->prepare("SELECT id_inscripcion FROM estudiante_materias WHERE id_usuario = ? AND id_materia = ? AND id_periodo = ?");
                         $stmt_chk->bind_param("iii", $estudiante_id, $id_mat, $id_periodo);
                         $stmt_chk->execute();
@@ -24804,7 +25690,6 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
                             $stmt_up->close();
                         }
                         
-                        // Asegurar registro en notas_definitivas
                         $stmt_not = $db->prepare("SELECT id FROM notas_definitivas WHERE id_usuario = ? AND id_materia = ? AND id_periodo = ?");
                         $stmt_not->bind_param("iii", $estudiante_id, $id_mat, $id_periodo);
                         $stmt_not->execute();
@@ -24866,10 +25751,83 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
             $stmt_rm->execute();
             $stmt_rm->close();
         } elseif ($tipo === 'constancia_reincorporacion') {
+            // El admin decide en qué período lo añade
+            $periodo_target = intval($id_periodo_reincorporacion);
+            if ($periodo_target <= 0) {
+                $periodo_target = $id_periodo;
+            }
+            if ($periodo_target <= 0) {
+                $p_act = obtenerPeriodoActivo($db);
+                $periodo_target = intval($p_act['id_periodo'] ?? 0);
+            }
+
+            $res_p_nom = $db->query("SELECT nombre_periodo FROM periodos_academicos WHERE id_periodo = $periodo_target LIMIT 1");
+            $nombre_periodo_sel = ($res_p_nom && $row_pn = $res_p_nom->fetch_assoc()) ? $row_pn['nombre_periodo'] : "Período #$periodo_target";
+
+            // Activar estudiante
             $stmt_reinc = $db->prepare("UPDATE users SET status = 1 WHERE id = ?");
             $stmt_reinc->bind_param("i", $estudiante_id);
             $stmt_reinc->execute();
             $stmt_reinc->close();
+
+            // Evaluar trayecto según requisitos académicos (T0->T1, T1->T2, T2->T3, T3->T4)
+            $eval_trayecto = determinarTrayectoEstudianteSegunRequisitos($estudiante_id, $id_carrera);
+            $target_trayecto_num = $eval_trayecto['numero_trayecto'];
+
+            $res_t_db = $db->query("SELECT id_trayecto FROM trayectos WHERE numero_trayecto = $target_trayecto_num LIMIT 1");
+            $id_trayecto_target = ($res_t_db && $row_tdb = $res_t_db->fetch_assoc()) ? intval($row_tdb['id_trayecto']) : 1;
+
+            $res_u_t = $db->query("SELECT turno FROM users WHERE id = $estudiante_id LIMIT 1");
+            $turno_est = ($res_u_t && $row_ut = $res_u_t->fetch_assoc()) ? $row_ut['turno'] : null;
+
+            // Buscar sección disponible en ese período y trayecto
+            $seccion_disp = buscarSeccionDisponibleReincorporacion($periodo_target, $id_carrera, $target_trayecto_num, $turno_est);
+
+            $meta_reinc = is_array($materias_data) ? $materias_data : [];
+            $meta_reinc['periodo_asignado'] = $periodo_target;
+            $meta_reinc['nombre_periodo_asignado'] = $nombre_periodo_sel;
+            $meta_reinc['trayecto_determinado'] = $target_trayecto_num;
+            $meta_reinc['id_trayecto'] = $id_trayecto_target;
+            $meta_reinc['evaluacion_motivo'] = $eval_trayecto['motivo'];
+
+            if ($seccion_disp) {
+                $sec_id = intval($seccion_disp['id_seccion']);
+                $sec_cod = $seccion_disp['codigo_seccion'];
+
+                $db->query("UPDATE estudiante_seccion SET estatus = 'retirado' WHERE id_usuario = $estudiante_id AND estatus = 'activo'");
+
+                $db->query("INSERT INTO estudiante_seccion (id_usuario, id_seccion, fecha_inscripcion, estatus) 
+                            VALUES ($estudiante_id, $sec_id, CURDATE(), 'activo') 
+                            ON DUPLICATE KEY UPDATE estatus = 'activo', fecha_inscripcion = CURDATE()");
+
+                $cant_inscritas = inscribirMateriasEstudianteReincorporacion($estudiante_id, $sec_id, $periodo_target, $id_carrera, $target_trayecto_num);
+
+                $meta_reinc['reincorporacion_estado'] = 'asignado';
+                $meta_reinc['id_seccion_asignada'] = $sec_id;
+                $meta_reinc['codigo_seccion_asignada'] = $sec_cod;
+                $meta_reinc['materias_inscritas_count'] = $cant_inscritas;
+
+                $observacion_reinc = "Reincorporación APROBADA para el período $nombre_periodo_sel. Evaluado a Trayecto $target_trayecto_num ({$eval_trayecto['motivo']}). Asignado a la sección $sec_cod con $cant_inscritas materias inscritas.";
+                $mensaje_personalizado_exito = "Estudiante reincorporado con éxito en el período $nombre_periodo_sel, Trayecto $target_trayecto_num y asignado a la sección $sec_cod ($cant_inscritas materias inscritas).";
+            } else {
+                $meta_reinc['reincorporacion_estado'] = 'esperando_seccion';
+                $meta_reinc['id_seccion_asignada'] = null;
+
+                $observacion_reinc = "Reincorporación APROBADA para el período $nombre_periodo_sel. Evaluado a Trayecto $target_trayecto_num ({$eval_trayecto['motivo']}). Actualmente no hay secciones creadas o con cupos disponibles para este trayecto y período; el estudiante ha quedado en lista de espera para ingreso automático.";
+                $mensaje_personalizado_exito = "Reincorporación aprobada para el período $nombre_periodo_sel (Trayecto $target_trayecto_num). Actualmente NO hay secciones creadas con cupo para este trayecto; el estudiante ha quedado en espera para entrar automáticamente tan pronto se abra una sección.";
+            }
+
+            $materias_data_json = json_encode($meta_reinc, JSON_UNESCAPED_UNICODE);
+            $stmt_up_sol = $db->prepare("UPDATE solicitudes_academicas SET materias_data = ?, id_periodo = ? WHERE id = ?");
+            $stmt_up_sol->bind_param("sii", $materias_data_json, $periodo_target, $id_solicitud);
+            $stmt_up_sol->execute();
+            $stmt_up_sol->close();
+
+            if (!empty($observacion)) {
+                $observacion = $observacion . " | " . $observacion_reinc;
+            } else {
+                $observacion = $observacion_reinc;
+            }
         } elseif ($tipo === 'intensivo' || $tipo === 'evaluacion_extraordinaria') {
             $mats = $materias_data['materias'] ?? [];
             if (!empty($mats) && is_array($mats)) {
@@ -24894,7 +25852,8 @@ function procesarAprobacionSolicitudAcademica($id_solicitud, $admin_id, $observa
         $stmt_app->close();
         
         $db->commit();
-        return ['success' => true, 'message' => 'Solicitud aprobada y cambios académicos aplicados automáticamente con éxito.'];
+        $msg_final = !empty($mensaje_personalizado_exito) ? $mensaje_personalizado_exito : 'Solicitud aprobada y cambios académicos aplicados automáticamente con éxito.';
+        return ['success' => true, 'message' => $msg_final];
     } catch (Exception $e) {
         $db->rollback();
         return ['success' => false, 'message' => 'Error al procesar la aprobación: ' . $e->getMessage()];
@@ -25008,7 +25967,7 @@ function obtenerMateriasDisponiblesParaAdicion($estudiante_id, $id_carrera, $id_
     // Obtener materias ya inscritas o aprobadas
     $query_excluidas = "SELECT DISTINCT id_materia FROM estudiante_materias WHERE id_usuario = $estudiante_id AND (estatus = 'activo' OR nota_final >= 10) AND (id_periodo = $id_periodo OR $id_periodo = 0)
                         UNION
-                        SELECT DISTINCT id_materia FROM notas_definitivas WHERE id_usuario = $estudiante_id AND (COALESCE(trayecto_0, 0) >= 10 OR COALESCE(trayecto_1, 0) >= 10 OR COALESCE(trayecto_2, 0) >= 10 OR COALESCE(trayecto_3, 0) >= 10 OR COALESCE(trayecto_4, 0) >= 10)";
+                        SELECT DISTINCT id_materia FROM notas_definitivas WHERE id_usuario = $estudiante_id AND (COALESCE(nota_final, 0) >= 10 OR COALESCE(trayecto_0, 0) >= 10 OR COALESCE(trayecto_1, 0) >= 10 OR COALESCE(trayecto_2, 0) >= 10 OR COALESCE(trayecto_3, 0) >= 10 OR COALESCE(trayecto_4, 0) >= 10)";
     $res_exc = $db->query($query_excluidas);
     $excluidas = [];
     if ($res_exc) {

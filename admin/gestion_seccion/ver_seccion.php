@@ -1,17 +1,64 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $titulopag = "Ver Sección";
 require_once(__DIR__ . '/../../funciones/functions.php');
+
+// Validar que la petición sea estrictamente por método POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    ?>
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Acceso no permitido - UPTPC</title>
+        <link rel="stylesheet" href="../../css/bootstrap.min.css">
+        <link rel="stylesheet" href="../../vendor/fontawesome-free/css/all.min.css">
+        <style>
+            body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            .error-card { max-width: 540px; margin: 80px auto; border: none; border-radius: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="card error-card shadow p-4 text-center">
+                <div class="text-danger mb-3">
+                    <i class="fas fa-ban fa-4x text-danger opacity-75"></i>
+                </div>
+                <h4 class="text-dark font-weight-bold mb-2">Método de Acceso No Permitido</h4>
+                <p class="text-muted mb-4">
+                    Por motivos de seguridad e integridad de datos, la visualización de secciones no acepta solicitudes mediante el método <strong>GET</strong> (parámetros en la URL).
+                </p>
+                <div class="alert alert-light border small text-left text-secondary mb-4">
+                    <i class="fas fa-shield-alt text-primary mr-1"></i> Esta operación debe ser solicitada mediante el método seguro <strong>POST</strong> desde el panel de Gestión de Secciones.
+                </div>
+                <div>
+                    <a href="gestion_seccion.php" class="btn btn-primary px-4 font-weight-bold">
+                        <i class="fas fa-arrow-left mr-1"></i> Ir a Gestión de Secciones
+                    </a>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit();
+}
 
 cargarPermisosUsuario();
 verificarPermiso('secciones');
 visita();
 
-$id_seccion = (int)$_GET['id'] ?? 0;
-if (!$id_seccion) header("Location: gestion_seccion.php");
+$id_seccion = (int)($_POST['id'] ?? ($_POST['id_seccion'] ?? 0));
+if (!$id_seccion) {
+    header("Location: gestion_seccion.php");
+    exit();
+}
 
 $seccion = obtenerDetalleSeccion($db, $id_seccion);
 $estudiantes = obtenerEstudiantesDeSeccion($db, $id_seccion);
@@ -86,7 +133,12 @@ include(__DIR__ . '/../includes/head.php');
             <div class="card shadow">
                 <div class="card-header py-1"><h6 class="m-0">Acciones</h6></div>
                 <div class="card-body py-2 acciones-botones">
-                    <a href="editar_seccion.php?id=<?= $id_seccion ?>" class="btn btn-primary btn-sm btn-block mb-1">Editar Sección</a>
+                    <form method="POST" action="editar_seccion.php" class="mb-1">
+                        <input type="hidden" name="id" value="<?= $id_seccion ?>">
+                        <button type="submit" class="btn btn-primary btn-sm btn-block">
+                            <i class="fas fa-edit mr-1"></i> Editar Sección
+                        </button>
+                    </form>
                     
                     <?php if (!$periodo_inactivo): ?>
                         <a href="asignar_estudiantes.php?id=<?= $id_seccion ?>" class="btn btn-warning btn-sm btn-block mb-1">Asignar Estudiantes</a>

@@ -5,10 +5,16 @@ ini_set('display_errors', '1');
 $titulopag = "Sistema de Gestión - Panel de Director de Carrera";
 include('../funciones/functions.php');
 
+cargarPermisosUsuario();
+
 // Verificar autenticación y rol
-if (!isLoggedIn() || !isUser()) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+if (!isLoggedIn()) {
     header('location: ../login.php');
+    exit();
+}
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
     exit();
 }
 

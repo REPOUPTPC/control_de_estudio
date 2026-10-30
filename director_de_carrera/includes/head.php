@@ -27,11 +27,36 @@ $mensajes_no_leidos = 0;
 if (isset($_SESSION['user']['id'])) {
     $mensajes_no_leidos = contarMensajesNoLeidos($_SESSION['user']['id']);
 }
-// Verificar autenticación y rol
-if (!isLoggedIn() || !isUser()) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+// Recargar permisos desde la base de datos para validar en tiempo real
+cargarPermisosUsuario();
+
+// Verificar autenticación y rol estricto de Director de Carrera
+if (!isLoggedIn()) {
+    $_SESSION['msg'] = "Debes iniciar sesión para acceder";
     header('location: ../login.php');
     exit();
+}
+
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
+    exit();
+}
+
+// Si es administrador, permitir cambiar o asignar carrera activa
+if (isAdmin()) {
+    if (isset($_GET['cambiar_carrera_di']) && intval($_GET['cambiar_carrera_di']) > 0) {
+        $_SESSION['admin_selected_carrera_di'] = intval($_GET['cambiar_carrera_di']);
+        $_SESSION['user']['carrera_di'] = intval($_GET['cambiar_carrera_di']);
+    } elseif (!empty($_SESSION['admin_selected_carrera_di'])) {
+        $_SESSION['user']['carrera_di'] = $_SESSION['admin_selected_carrera_di'];
+    } elseif (empty($_SESSION['user']['carrera_di'])) {
+        $firstCarrera = $db->query("SELECT id_carrera FROM carreras WHERE activa = 1 ORDER BY id_carrera ASC LIMIT 1");
+        if ($firstCarrera && $fc = $firstCarrera->fetch_assoc()) {
+            $_SESSION['user']['carrera_di'] = intval($fc['id_carrera']);
+            $_SESSION['admin_selected_carrera_di'] = intval($fc['id_carrera']);
+        }
+    }
 }
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
@@ -257,12 +282,19 @@ if (!isLoggedIn() || !isUser()) {
             </li>
 
             <!-- Menú de Ajustes -->
-                        <!-- Menú: Control de Notas de Profesores -->
             <li class="nav-item">
               <a class="nav-link" href="seguimiento_notas.php" title="Control y Seguimiento de Notas de Profesores">
                 <i class="fas fa-clipboard-check fa-fw"></i> Notas de Profesores
               </a>
             </li>
+
+            <?php if (isAdmin()): ?>
+            <li class="nav-item">
+              <a class="nav-link font-weight-bold text-white bg-primary px-3 rounded shadow-sm mr-2" href="../admin/index.php" title="Ir al Panel de Administración">
+                <i class="fas fa-user-shield fa-fw"></i> Panel Admin
+              </a>
+            </li>
+            <?php endif; ?>
 
             <li id="dropdown-ajustes-director" class="nav-item dropdown">
                 <a title="Ir a Ajustes" class="nav-link dropdown-toggle" href="#" id="navbarDropdownAjustesDirector" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -303,8 +335,28 @@ if (!isLoggedIn() || !isUser()) {
             <b class="mt-5"><?php echo 'Bienvenido ' .$_SESSION['user']['nombre']; ?></b>
             <div class="mt-1 mb-2">
                 <span class="badge badge-pill shadow-sm px-3 py-1 text-uppercase font-weight-bold text-white" style="background-color: #fd7e14; font-size: 0.8rem; letter-spacing: 0.5px;">
-                    <i class="fas fa-user-tie mr-1"></i> Panel de Director de Carrera
+                    <i class="fas fa-user-tie mr-1"></i> Panel de Director de Carrera <?= isAdmin() ? '(Modo Administrador)' : '' ?>
                 </span>
+                <?php if (isAdmin()): ?>
+                    <?php
+                    $carreras_list_head = $db->query("SELECT id_carrera, nombre_carrera FROM carreras WHERE activa = 1 ORDER BY nombre_carrera ASC");
+                    $curr_car_id = $_SESSION['user']['carrera_di'] ?? 0;
+                    ?>
+                    <div class="mt-2">
+                        <form method="GET" class="form-inline">
+                            <label class="mr-2 font-weight-bold text-dark small"><i class="fas fa-university text-warning mr-1"></i> Carrera que está gestionando:</label>
+                            <select name="cambiar_carrera_di" class="form-control form-control-sm font-weight-bold shadow-sm" onchange="this.form.submit()" style="background-color: #fff; border: 2px solid #fd7e14;">
+                                <?php if ($carreras_list_head): ?>
+                                    <?php while ($carRow = $carreras_list_head->fetch_assoc()): ?>
+                                        <option value="<?= $carRow['id_carrera'] ?>" <?= $curr_car_id == $carRow['id_carrera'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($carRow['nombre_carrera']) ?>
+                                        </option>
+                                    <?php endwhile; ?>
+                                <?php endif; ?>
+                            </select>
+                        </form>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
         <div class="col-sm-6">

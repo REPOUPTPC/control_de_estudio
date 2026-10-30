@@ -1,5 +1,11 @@
 <?php
-require_once('../funciones/functions.php');
+require_once __DIR__ . '/../funciones/functions.php';
+
+cargarPermisosUsuario();
+if (!isLoggedIn() || !isDirectorCarrera()) {
+    echo json_encode(['success' => false, 'message' => 'No autorizado']);
+    exit;
+}
 
 $action = $_POST['action'] ?? '';
 
@@ -25,26 +31,43 @@ switch($action) {
         }
         $html .= '</tr></thead><tbody>';
         
+        $skip_cells = [];
         foreach ($horas_tabla as $hora) {
-            $html .= '<tr><th class="bg-light">' . $hora . '</th>';
+            $html .= '<tr><th class="bg-light align-middle text-muted small" style="width: 80px;">' . $hora . '</th>';
             for ($dia = 0; $dia <= 5; $dia++) {
-                $contenido = '';
-                $clase_css = 'horario-cell celda-vacia';
-                $id_horario = '';
-                
+                if (isset($skip_cells[$dia][$hora])) {
+                    continue;
+                }
+
+                $clase_encontrada = null;
                 foreach ($horarios_por_dia[$dia] as $clase) {
                     if ($hora >= $clase['hora_inicio'] && $hora < $clase['hora_fin']) {
-                        $contenido = '<strong>' . htmlspecialchars($clase['nombre_materia']) . '</strong><br>' .
-                                    '<small>' . htmlspecialchars($clase['nombre_docente']) . '</small><br>' .
-                                    '<small>Aula: ' . htmlspecialchars($clase['aula']) . '</small>' .
-                                    '<br><button class="btn btn-danger btn-sm btn-eliminar-horario" data-id="' . $clase['id_horario'] . '">Eliminar</button>';
-                        $clase_css = 'horario-cell asignado';
-                        $id_horario = $clase['id_horario'];
+                        $clase_encontrada = $clase;
                         break;
                     }
                 }
-                
-                $html .= '<td class="' . $clase_css . '" data-dia="' . $dia . '" data-hora="' . $hora . '" data-id-horario="' . $id_horario . '">' . $contenido . '</td>';
+
+                if ($clase_encontrada) {
+                    $h_ini_ts = strtotime($hora);
+                    $h_fin_ts = strtotime($clase_encontrada['hora_fin']);
+                    $rowspan = max(1, (int) round(($h_fin_ts - $h_ini_ts) / 1800));
+
+                    $temp_ts = $h_ini_ts;
+                    for ($i = 1; $i < $rowspan; $i++) {
+                        $temp_ts += 1800;
+                        $skip_cells[$dia][date('H:i', $temp_ts)] = true;
+                    }
+
+                    $contenido = '<div class="p-1">' .
+                                 '<strong class="text-primary d-block">' . htmlspecialchars($clase_encontrada['nombre_materia']) . '</strong>' .
+                                 '<small class="text-dark d-block">' . htmlspecialchars($clase_encontrada['nombre_docente']) . '</small>' .
+                                 '<small class="text-muted d-block">Aula: ' . htmlspecialchars($clase_encontrada['aula']) . '</small>' .
+                                 '<button class="btn btn-danger btn-sm btn-eliminar-horario mt-1 shadow-sm" data-id="' . $clase_encontrada['id_horario'] . '">Eliminar</button>' .
+                                 '</div>';
+                    $html .= '<td class="horario-cell asignado align-middle" rowspan="' . $rowspan . '" data-dia="' . $dia . '" data-hora="' . $hora . '" data-id-horario="' . $clase_encontrada['id_horario'] . '">' . $contenido . '</td>';
+                } else {
+                    $html .= '<td class="horario-cell celda-vacia" data-dia="' . $dia . '" data-hora="' . $hora . '" data-id-horario=""></td>';
+                }
             }
             $html .= '</tr>';
         }

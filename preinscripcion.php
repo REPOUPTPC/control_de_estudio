@@ -96,8 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;'>
                                     <p style='color: #856404; margin: 0;'>
                                         <strong>📌 IMPORTANTE:</strong><br>
-                                        Debes presentarte en <strong>Control de Estudios</strong> para formalizar tu inscripción. 
-                                        Lleva contigo la planilla de preinscripción que se descargó al finalizar este proceso, los dias informados.
+                                        Debes presentarte en <strong>Control de Estudios</strong> para formalizar tu inscripción, llevando contigo tus <strong>documentos originales y copia</strong>. 
+                                        Lleva contigo la planilla de preinscripción que se descargó al finalizar este proceso, en los días hábiles informados. 
+                                        Ten en cuenta que <strong>la preinscripción no asegura un cupo en la universidad</strong>.
                                     </p>
                                 </div>
                                 
@@ -105,8 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <p style='color: #003366; font-size: 13px; margin: 0;'>
                                         <strong>🔔 Próximos pasos:</strong><br>
                                         1. Imprime tu planilla de preinscripción.<br>
-                                        2. Dirígete a la oficina de Control de Estudios.<br>
-                                        3. Formaliza tu inscripción presentando los documentos requeridos.
+                                        2. Dirígete a la oficina de Control de Estudios con tus documentos originales y copia.<br>
+                                        3. Formaliza tu inscripción (recuerda que la preinscripción no asegura un cupo en la universidad).
                                     </p>
                                 </div>
                             </div>
@@ -178,8 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="alert alert-warning mb-4">
                         <i class="fas fa-file-pdf me-2"></i> 
                         <strong>IMPORTANTE:</strong> Al finalizar su preinscripción, se descargará automáticamente una planilla en formato PDF. 
-                        Deberá presentar esta planilla impresa en <strong>Control de Estudios</strong> para formalizar su inscripción. 
-                        <strong>La planilla es OBLIGATORIA</strong> y debe ser entregada dentro de los días hábiles siguientes a su preinscripción.
+                        Deberá presentar esta planilla impresa en <strong>Control de Estudios</strong> para formalizar su inscripción, 
+                        debiendo llevar los <strong>documentos originales y copia</strong>. 
+                        <strong>La planilla es OBLIGATORIA</strong> y debe ser entregada dentro de los días hábiles siguientes a su preinscripción. 
+                        Tenga en cuenta que <strong>la preinscripción no asegura un cupo en la universidad</strong>.
                     </div>
 
                     <p class="mb-4">Complete el formulario de preinscripción con sus datos personales, académicos y de contacto. Todos los campos marcados con <span class="text-danger">*</span> son obligatorios.</p>
@@ -196,5 +199,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
+
+<script src="funciones/bootstrap-4.6.2-dist/js/bootstrap.bundle.min.js"></script>
+
+<?php if (!empty($error_message)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            icon: 'error',
+            title: 'Atención',
+            html: <?php echo json_encode($error_message); ?>,
+            confirmButtonColor: '#003366',
+            confirmButtonText: 'Entendido'
+        });
+    }
+});
+</script>
+<?php endif; ?>
+
 </body>
 </html>

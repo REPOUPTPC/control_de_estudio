@@ -138,8 +138,14 @@ include(__DIR__ . '/../includes/head.php');
                             <td class="small"><?= $seccion['capacidad_maxima'] ?></td>
                             <td><span class="badge badge-<?= $estado_clase ?>"><?= $estado_texto ?></span></td>
                             <td class="table-actions">
-                                <a href="ver_seccion.php?id=<?= $seccion['id_seccion'] ?>" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>
-                                <a href="editar_seccion.php?id=<?= $seccion['id_seccion'] ?>" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i></a>
+                                <form method="POST" action="ver_seccion.php" class="d-inline m-0 p-0">
+                                    <input type="hidden" name="id" value="<?= $seccion['id_seccion'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-info" title="Ver Sección"><i class="fas fa-eye"></i></button>
+                                </form>
+                                <form method="POST" action="editar_seccion.php" class="d-inline m-0 p-0">
+                                    <input type="hidden" name="id" value="<?= $seccion['id_seccion'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-primary" title="Editar Sección"><i class="fas fa-edit"></i></button>
+                                </form>
                                 <?php if ($seccion['periodo_activo'] == 1): ?>
                                     <a href="asignar_estudiantes.php?id=<?= $seccion['id_seccion'] ?>" class="btn btn-sm btn-warning"><i class="fas fa-users"></i></a>
                                 <?php endif; ?>

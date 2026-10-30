@@ -1098,42 +1098,150 @@ switch ($tipo) {
     // -------------------------------------------------------------------------------------
     // N. CONSTANCIA DE REINCORPORACIÓN
     // -------------------------------------------------------------------------------------
+    // N. REPORTE / CONSTANCIA DE REINCORPORACIÓN
+    // -------------------------------------------------------------------------------------
     case 'constancia_reincorporacion':
-        $pdf = new ConstanciaInstitucionalPDF('P', 'mm', 'Letter');
-        $pdf->documentTitle = "CONSTANCIA DE REINCORPORACIÓN";
-        $pdf->SetMargins(25, 25, 25);
-        $pdf->AddPage();
-        $pdf->SetFont('Arial', '', 11);
+        $es_aprobada = ($solicitud_data && ($solicitud_data['status'] ?? '') === 'aprobada');
+        $sol_num = $solicitud_id > 0 ? $solicitud_id : ($solicitud_data['id'] ?? 0);
+        $fecha_sol = !empty($solicitud_data['fecha_solicitud']) ? date('d/m/Y', strtotime($solicitud_data['fecha_solicitud'])) : date('d/m/Y');
+        $motivo_solicitud = !empty($solicitud_data['motivo']) ? $solicitud_data['motivo'] : (!empty($motivo_personalizado) ? $motivo_personalizado : 'Reincorporación a los estudios universitarios.');
+        $periodo_sol = !empty($solicitud_data['materias_parsed']['nombre_periodo_asignado']) 
+            ? $solicitud_data['materias_parsed']['nombre_periodo_asignado'] 
+            : (!empty($solicitud_data['materias_parsed']['periodo_reincorporacion']) ? $solicitud_data['materias_parsed']['periodo_reincorporacion'] : 'Período Activo');
 
-        $pdf->Write(6, txtPDF("Quien suscribe "));
-        $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("Dra. Zorangel E. Aponte Q."));
-        $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(", titular de la cédula de identidad "));
-        $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("V.-7.153.528"));
-        $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(". Jefa de Control de Estudios de nuestra Institución, hace constar que el (la) Ciudadano (a):"));
+        if (!$es_aprobada) {
+            // REPORTE / PLANILLA DE SOLICITUD DE REINCORPORACIÓN
+            $pdf = new ConstanciaInstitucionalPDF('P', 'mm', 'Letter');
+            $pdf->documentTitle = "SOLICITUD / REPORTE DE REINCORPORACIÓN";
+            $pdf->SetMargins(15, 15, 15);
+            $pdf->AddPage();
 
-        $pdf->Ln(12);
-        $pdf->SetFont('Arial', 'B', 12);
-        $pdf->Cell(0, 8, txtPDF($nombre_estudiante), 0, 1, 'C');
-        $pdf->Ln(5);
+            // Número de Trámite y Fecha
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->SetFillColor(240, 240, 240);
+            $pdf->Cell(45, 6, txtPDF('SOLICITUD N°:'), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(140, 6, '#' . ($sol_num > 0 ? $sol_num : 'REINC-PENDIENTE') . '  -  FECHA: ' . $fecha_sol, 1, 1, 'L');
 
-        $pdf->SetFont('Arial', '', 11);
-        $pdf->Write(6, txtPDF("Titular de la Cédula de Identidad "));
-        $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("V-" . $cedula_estudiante));
-        $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(", ha formalizado satisfactoriamente su "));
-        $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("REINCORPORACIÓN ACADÉMICA"));
-        $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(" en el Programa Nacional de Formación en:"));
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(45, 6, txtPDF('CÉDULA DE IDENTIDAD:'), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', '', 9);
+            $pdf->Cell(140, 6, 'V-' . $cedula_estudiante, 1, 1, 'L');
 
-        $pdf->Ln(12);
-        $pdf->SetFont('Arial', 'B', 11);
-        $pdf->Cell(0, 8, txtPDF($nombre_carrera), 0, 1, 'C');
-        $pdf->Ln(10);
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(45, 6, txtPDF('APELLIDOS Y NOMBRES:'), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', '', 9);
+            $pdf->Cell(140, 6, txtPDF($nombre_estudiante), 1, 1, 'L');
 
-        $pdf->renderFechaLegalCentrada();
-        $pdf->renderFirmaControlEstudios();
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(45, 6, txtPDF('PROGRAMA / CARRERA:'), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', '', 9);
+            $pdf->Cell(140, 6, txtPDF($nombre_carrera), 1, 1, 'L');
 
-        ob_end_clean();
-        $pdf->Output('I', "Constancia_Reincorporacion_" . $cedula_estudiante . ".pdf");
-        exit();
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(45, 6, txtPDF('PERÍODO SOLICITADO:'), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', 'B', 9);
+            $pdf->Cell(140, 6, txtPDF($periodo_sol), 1, 1, 'L');
+
+            $pdf->Ln(4);
+            $pdf->SetFont('Arial', 'B', 8.5);
+            $pdf->Cell(0, 5, txtPDF('MOTIVO / JUSTIFICACIÓN DE LA SOLICITUD:'), 0, 1, 'L');
+            $y_mot = $pdf->GetY();
+            $pdf->Rect(15, $y_mot, 185, 20);
+            $pdf->SetXY(17, $y_mot + 2);
+            $pdf->SetFont('Arial', '', 8.5);
+            $pdf->MultiCell(181, 4.5, txtPDF($motivo_solicitud), 0, 'L');
+            $pdf->SetY($y_mot + 23);
+
+            // Recuadro de Requisitos Obligatorios
+            $pdf->SetFillColor(255, 248, 225);
+            $pdf->SetDrawColor(255, 179, 0);
+            $pdf->SetFont('Arial', 'B', 8.5);
+            $pdf->Cell(0, 6, txtPDF('REQUISITOS OBLIGATORIOS A CONSIGNAR EN CONTROL DE ESTUDIOS:'), 1, 1, 'L', true);
+            $pdf->SetDrawColor(0, 0, 0);
+
+            $y_req = $pdf->GetY();
+            $pdf->Rect(15, $y_req, 185, 32);
+            $pdf->SetXY(18, $y_req + 2);
+            $pdf->SetFont('Arial', '', 8);
+            $pdf->Write(4.5, txtPDF("Para formalizar el trámite de reincorporación, el estudiante debe consignar en Control de Estudios:\n"));
+            $pdf->SetFont('Arial', 'B', 8);
+            $pdf->Write(4.5, txtPDF("  1. Copia ampliada y legible de la Cédula de Identidad.\n"));
+            $pdf->Write(4.5, txtPDF("  2. Comprobante original del pago del arancel universitario correspondiente.\n"));
+            $pdf->Write(4.5, txtPDF("  3. Dos (2) ejemplares impresos de este reporte/planilla de reincorporación.\n"));
+            $pdf->SetFont('Arial', 'I', 7.5);
+            $pdf->Write(4, txtPDF("* Nota: Control de Estudios evaluará sus requisitos académicos y proyectos aprobados para determinar el trayecto y sección correspondiente."));
+            $pdf->SetY($y_req + 36);
+
+            $y_firma = $pdf->GetY();
+            $pdf->Rect(15, $y_firma, 85, 22);
+            $pdf->SetXY(15, $y_firma + 1);
+            $pdf->SetFont('Arial', 'B', 8);
+            $pdf->Cell(85, 4, txtPDF('Firma del Estudiante'), 0, 1, 'C');
+            $pdf->SetFont('Arial', '', 7.5);
+            $pdf->Cell(85, 14, txtPDF('C.I. V-' . $cedula_estudiante), 0, 0, 'C');
+
+            $pdf->Rect(115, $y_firma, 85, 22);
+            $pdf->SetXY(115, $y_firma + 1);
+            $pdf->SetFont('Arial', 'B', 8);
+            $pdf->Cell(85, 4, txtPDF('Recepción y Validación Control de Estudios'), 0, 1, 'C');
+            $pdf->SetFont('Arial', 'I', 7.5);
+            $pdf->SetXY(115, $y_firma + 15);
+            $pdf->Cell(85, 4, txtPDF('Fecha, Firma y Sello'), 0, 0, 'C');
+
+            ob_end_clean();
+            $pdf->Output('I', "Reporte_Reincorporacion_" . $cedula_estudiante . ".pdf");
+            exit();
+        } else {
+            // CONSTANCIA DE REINCORPORACIÓN APROBADA
+            $pdf = new ConstanciaInstitucionalPDF('P', 'mm', 'Letter');
+            $pdf->documentTitle = "CONSTANCIA DE REINCORPORACIÓN";
+            $pdf->SetMargins(25, 25, 25);
+            $pdf->AddPage();
+            $pdf->SetFont('Arial', '', 11);
+
+            $pdf->Write(6, txtPDF("Quien suscribe "));
+            $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("Dra. Zorangel E. Aponte Q."));
+            $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(", titular de la cédula de identidad "));
+            $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("V.-7.153.528"));
+            $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(". Jefa de Control de Estudios de nuestra Institución, hace constar que el (la) Ciudadano (a):"));
+
+            $pdf->Ln(10);
+            $pdf->SetFont('Arial', 'B', 12);
+            $pdf->Cell(0, 7, txtPDF($nombre_estudiante), 0, 1, 'C');
+            $pdf->Ln(3);
+
+            $pdf->SetFont('Arial', '', 11);
+            $pdf->Write(6, txtPDF("Titular de la Cédula de Identidad "));
+            $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("V-" . $cedula_estudiante));
+            $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(", ha formalizado satisfactoriamente su "));
+            $pdf->SetFont('Arial', 'B', 11); $pdf->Write(6, txtPDF("REINCORPORACIÓN ACADÉMICA"));
+            $pdf->SetFont('Arial', '', 11); $pdf->Write(6, txtPDF(" en el Programa Nacional de Formación en:"));
+
+            $pdf->Ln(10);
+            $pdf->SetFont('Arial', 'B', 11);
+            $pdf->Cell(0, 7, txtPDF($nombre_carrera), 0, 1, 'C');
+            $pdf->Ln(6);
+
+            $tray_det = $solicitud_data['materias_parsed']['trayecto_determinado'] ?? null;
+            $sec_cod = $solicitud_data['materias_parsed']['codigo_seccion_asignada'] ?? null;
+            if ($tray_det !== null || !empty($periodo_sol)) {
+                $pdf->SetFont('Arial', 'I', 10);
+                $det_aprob = "Para cursar actividades correspondientes al " . txtPDF($periodo_sol);
+                if ($tray_det !== null) $det_aprob .= ", Trayecto " . $tray_det;
+                if (!empty($sec_cod)) $det_aprob .= " (Sección: " . $sec_cod . ")";
+                $det_aprob .= ".";
+                $pdf->Cell(0, 6, $det_aprob, 0, 1, 'C');
+                $pdf->Ln(6);
+            }
+
+            $pdf->renderFechaLegalCentrada();
+            $pdf->renderFirmaControlEstudios();
+
+            ob_end_clean();
+            $pdf->Output('I', "Constancia_Reincorporacion_" . $cedula_estudiante . ".pdf");
+            exit();
+        }
 
 
     // -------------------------------------------------------------------------------------
@@ -1280,7 +1388,7 @@ switch ($tipo) {
         $pdf->Cell(35, 6, txtPDF('CONDICIÓN'), 1, 1, 'C', true);
 
         // Consulta de notas reales del estudiante
-        $query_notas = "SELECT nd.*, m.nombre_materia, m.cod_materia, m.trayecto 
+        $query_notas = "SELECT nd.*, m.nombre_materia, m.cod_materia, m.trayecto, m.nota_minima_aprobatoria 
                         FROM notas_definitivas nd
                         INNER JOIN materias m ON nd.id_materia = m.id_materia
                         WHERE nd.id_usuario = ? 
@@ -1296,14 +1404,16 @@ switch ($tipo) {
 
         while ($nota_row = $res_notas->fetch_assoc()) {
             $count++;
-            $nota_val = $nota_row['trayecto_0'] ?? $nota_row['trayecto_1'] ?? $nota_row['trayecto_2'] ?? $nota_row['trayecto_3'] ?? $nota_row['trayecto_4'] ?? 0;
-            $suma_notas += floatval($nota_val);
-            $condicion = ($nota_val >= 12) ? 'APROBADA' : 'REPROBADA';
+            $nota_val = $nota_row['nota_final'] ?? $nota_row['trayecto_0'] ?? $nota_row['trayecto_1'] ?? $nota_row['trayecto_2'] ?? $nota_row['trayecto_3'] ?? $nota_row['trayecto_4'] ?? 0;
+            $nota_float = floatval($nota_val);
+            $suma_notas += $nota_float;
+            $min_aprob = isset($nota_row['nota_minima_aprobatoria']) ? floatval($nota_row['nota_minima_aprobatoria']) : 12.0;
+            $condicion = ($nota_float >= $min_aprob) ? 'APROBADA' : 'REPROBADA';
 
             $pdf->Cell(20, 6, txtPDF($nota_row['cod_materia'] ?? 'MAT-' . $nota_row['id_materia']), 1, 0, 'C');
             $pdf->Cell(85, 6, txtPDF(substr($nota_row['nombre_materia'], 0, 45)), 1, 0, 'L');
             $pdf->Cell(20, 6, txtPDF('Trayecto ' . $nota_row['trayecto']), 1, 0, 'C');
-            $pdf->Cell(25, 6, str_pad($nota_val, 2, "0", STR_PAD_LEFT), 1, 0, 'C');
+            $pdf->Cell(25, 6, str_pad(number_format($nota_float, 0), 2, "0", STR_PAD_LEFT), 1, 0, 'C');
             $pdf->Cell(35, 6, txtPDF($condicion), 1, 1, 'C');
         }
         $stmt_n->close();

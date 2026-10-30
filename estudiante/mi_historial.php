@@ -158,7 +158,7 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
     }
     
     // Consultar notas definitivas
-    $query_nd = "SELECT nd.*, m.trayecto, pa.nombre_periodo 
+    $query_nd = "SELECT nd.*, m.trayecto, m.nota_minima_aprobatoria, pa.nombre_periodo 
                  FROM notas_definitivas nd
                  INNER JOIN materias m ON nd.id_materia = m.id_materia
                  LEFT JOIN periodos_academicos pa ON nd.id_periodo = pa.id_periodo
@@ -171,7 +171,10 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
         $materia_id = intval($row_nd['id_materia']);
         $tray = intval($row_nd['trayecto']);
         $col = "trayecto_" . $tray;
-        $nota_def = isset($row_nd[$col]) && $row_nd[$col] !== null ? floatval($row_nd[$col]) : null;
+        $nota_def = isset($row_nd['nota_final']) && $row_nd['nota_final'] !== null 
+            ? floatval($row_nd['nota_final']) 
+            : (isset($row_nd[$col]) && $row_nd[$col] !== null ? floatval($row_nd[$col]) : null);
+        $min_aprob = isset($row_nd['nota_minima_aprobatoria']) ? floatval($row_nd['nota_minima_aprobatoria']) : 12.0;
         
         if (!isset($notas[$materia_id])) {
             $notas[$materia_id] = [
@@ -182,10 +185,11 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
                 'nombre_periodo' => $row_nd['nombre_periodo'] ?? '',
                 'fecha_registro' => $row_nd['fecha_registro'] ?? '',
                 'nombre_admin' => 'Control de Estudios',
-                'estado' => ($nota_def !== null ? ($nota_def >= 12 ? 'aprobada' : 'reprobada') : 'en_curso')
+                'estado' => ($nota_def !== null ? ($nota_def >= $min_aprob ? 'aprobada' : 'reprobada') : 'en_curso')
             ];
         } elseif ($notas[$materia_id]['nota_final'] === null && $nota_def !== null) {
             $notas[$materia_id]['nota_final'] = $nota_def;
+            $notas[$materia_id]['estado'] = ($nota_def >= $min_aprob ? 'aprobada' : 'reprobada');
         }
     }
     $stmt_nd->close();

@@ -5,17 +5,23 @@ ini_set('display_errors', '1');
 $titulopag = "Asignación de Voceros";
 include('../funciones/functions.php');
 
+cargarPermisosUsuario();
+
 // Verificar autenticación básica
-if (!isLoggedIn() || !isUser()) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+if (!isLoggedIn()) {
     header('location: ../login.php');
+    exit();
+}
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
     exit();
 }
 
 // LLAMAR A LA FUNCIÓN DE VISITA
 visita();
 
-$carrera_director = $_SESSION['user']['carrera_di'];
+$carrera_director = $_SESSION['user']['carrera_di'] ?? 1;
 
 // Configuración de paginación
 $registros_por_pagina = 15;
@@ -49,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     $user = $result->fetch_assoc();
 
-    if ($user['carrera'] != $carrera_director) {
+    if ($user['carrera'] != $carrera_director && !isAdmin()) {
         echo json_encode(['success' => false, 'msg' => 'No tiene permisos para modificar este estudiante']);
         exit();
     }

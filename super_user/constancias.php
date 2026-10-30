@@ -92,8 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $sol_id = intval($_POST['solicitud_id']);
             $observacion = trim($_POST['observacion_admin'] ?? '');
+            $id_periodo_reinc = intval($_POST['id_periodo_reincorporacion'] ?? 0);
             
-            $resultado = procesarAprobacionSolicitudAcademica($sol_id, $admin_id, $observacion);
+            $resultado = procesarAprobacionSolicitudAcademica($sol_id, $admin_id, $observacion, $id_periodo_reinc);
             if ($resultado['success']) {
                 $mensaje = $resultado['message'];
                 $tipo_mensaje = 'success';
@@ -1449,6 +1450,29 @@ include("includes/head.php");
                     </div>
                     <p id="aprobarTextoConfirmacion" class="mb-3 font-weight-bold text-dark"></p>
                     
+                    <!-- Selector de período para Reincorporación -->
+                    <div id="divPeriodoReincorporacion" style="display:none;" class="form-group mb-3 p-3 bg-light rounded border border-success">
+                        <label class="font-weight-bold text-success small text-uppercase mb-1">
+                            <i class="fas fa-calendar-check mr-1"></i> Período Académico de Reincorporación <span class="text-danger">*</span>:
+                        </label>
+                        <select name="id_periodo_reincorporacion" id="selectPeriodoReincorporacion" class="form-control form-control-sm font-weight-bold">
+                            <?php 
+                            $res_p_reinc = $db->query("SELECT id_periodo, nombre_periodo, activo FROM periodos_academicos ORDER BY id_periodo DESC");
+                            if ($res_p_reinc) {
+                                while ($pr = $res_p_reinc->fetch_assoc()) {
+                                    $is_act = ($pr['activo'] == 1);
+                                    echo '<option value="' . $pr['id_periodo'] . '" ' . ($is_act ? 'selected' : '') . '>';
+                                    echo htmlspecialchars($pr['nombre_periodo']) . ($is_act ? ' (Activo)' : '');
+                                    echo '</option>';
+                                }
+                            }
+                            ?>
+                        </select>
+                        <small class="form-text text-muted mt-1">
+                            <i class="fas fa-info-circle text-info mr-1"></i> Control de Estudios define en qué período se incorpora. El sistema evaluará el avance del estudiante para asignarlo al trayecto y sección correspondiente, o dejarlo en espera activa si aún no hay sección disponible.
+                        </small>
+                    </div>
+
                     <div class="form-group mb-0">
                         <label class="small font-weight-bold text-muted text-uppercase">Observación Administrativa (Opcional):</label>
                         <textarea class="form-control" name="observacion_admin" rows="2" maxlength="100" placeholder="Notas internas o comentarios para el estudiante..."></textarea>
@@ -1915,6 +1939,15 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('aprobar_solicitud_id').value = id;
             document.getElementById('aprobarTextoConfirmacion').innerHTML = '¿Estás seguro de <strong>APROBAR</strong> la solicitud <strong>#' + id + '</strong> (' + tipo.toUpperCase() + ') del estudiante <strong>' + nombre + '</strong>?';
             
+            var divReinc = document.getElementById('divPeriodoReincorporacion');
+            if (divReinc) {
+                if (tipo === 'constancia_reincorporacion' || tipo === 'reincorporacion') {
+                    divReinc.style.display = 'block';
+                } else {
+                    divReinc.style.display = 'none';
+                }
+            }
+
             $('#modalConfirmarAprobacion').modal('show');
         });
     });

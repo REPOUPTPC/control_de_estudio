@@ -401,7 +401,7 @@ if ($estudiante && !empty($estudiante['id'])) {
                     $nueva_sol_id = crearSolicitudAcademica($estudiante_id, 'constancia_reincorporacion', 'reincorporacion', $motivo, $materias_data);
                     if ($nueva_sol_id) {
                         $_SESSION['flash_solicitud'] = [
-                            'exito' => "¡Solicitud de Reincorporación registrada con el N° #$nueva_sol_id!",
+                            'exito' => "¡Solicitud de Reincorporación registrada con el N° #$nueva_sol_id! Recuerde que debe llevar a Control de Estudios: copia de cédula, el comprobante del arancel y dos (2) reportes impresos de esta solicitud de reincorporación.",
                             'pdf_id' => $nueva_sol_id
                         ];
                     } else {
@@ -1632,8 +1632,19 @@ include("includes/head.php");
                                 </div>
                                 
                                 <div class="modal-body">
+                                    <div class="alert alert-warning py-2 small mb-3 border-warning">
+                                        <div class="font-weight-bold text-dark mb-1">
+                                            <i class="fas fa-exclamation-circle text-danger mr-1"></i> <strong>REQUISITOS OBLIGATORIOS A CONSIGNAR EN CONTROL DE ESTUDIOS:</strong>
+                                        </div>
+                                        <p class="mb-1 text-dark">Para formalizar su reincorporación debe acudir al Departamento de Control de Estudios con:</p>
+                                        <ul class="pl-3 mb-0 text-dark">
+                                            <li><strong>Copia legible de la Cédula de Identidad</strong>.</li>
+                                            <li><strong>Comprobante de pago del arancel correspondiente</strong>.</li>
+                                            <li><strong>Dos (2) reportes impresos de esta solicitud de reincorporación</strong> (generados al presionar el botón inferior).</li>
+                                        </ul>
+                                    </div>
                                     <div class="alert alert-info py-2 small mb-3">
-                                        <i class="fas fa-calendar-check mr-1"></i> Período de reincorporación: <strong class="text-uppercase"><?php echo htmlspecialchars($periodo_activo_nombre ?? 'Período Activo'); ?></strong> (Período Académico Activo en el Sistema).
+                                        <i class="fas fa-calendar-check mr-1"></i> Período solicitado inicial: <strong class="text-uppercase"><?php echo htmlspecialchars($periodo_activo_nombre ?? 'Período Activo'); ?></strong>. Control de Estudios evaluará sus requisitos académicos y determinará el período, trayecto y sección correspondiente.
                                     </div>
                                     <div class="form-group mb-0">
                                         <div class="d-flex justify-content-between align-items-center mb-1">

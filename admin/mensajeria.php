@@ -8,6 +8,11 @@ verificarPermiso('mensajeria');
 // LLAMAR A LA FUNCIÓN DE VISITA
 visita();
 
+// Verificar automáticamente si hay docentes con fecha de carga vencida
+if (isAdmin() || tienePermiso('mensajeria')) {
+    verificarDocentesCargaVencida();
+}
+
 // Asegurar sesión y CSRF token
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -508,6 +513,33 @@ document.addEventListener('DOMContentLoaded', function() {
                             `<p class="mb-1"><strong>De:</strong> ${escapeHtml(m.remitente_nombre)} <span class="badge badge-info">${escapeHtml(m.tipo_usuario)}</span> (C.I: ${escapeHtml(m.remitente_cedula)})</p>` :
                             `<p class="mb-1"><strong>Para:</strong> ${escapeHtml(m.destinatario_nombre)} <span class="badge badge-info">${escapeHtml(m.tipo_usuario)}</span> (C.I: ${escapeHtml(m.destinatario_cedula)})</p>`;
                         
+                        let textoLimpio = m.mensaje || '';
+                        const amonIdMatch = textoLimpio.match(/\[AMONESTACION_ACTION:(\d+)\]/);
+                        const amonId = amonIdMatch ? amonIdMatch[1] : null;
+                        textoLimpio = textoLimpio.replace(/\[AMONESTACION_ACTION:(\d+)\]/g, '').trim();
+
+                        let amonHtml = '';
+                        if (amonId) {
+                            amonHtml = `
+                            <div class="mt-4 p-3 border border-danger rounded bg-white shadow-sm" id="card_amon_${amonId}">
+                                <div class="d-flex align-items-center mb-2 text-danger font-weight-bold">
+                                    <i class="fas fa-exclamation-triangle fa-lg mr-2"></i>
+                                    <span>ACCIONES ADMINISTRATIVAS - CONTROL DE ESTUDIOS</span>
+                                </div>
+                                <p class="text-muted small mb-3">
+                                    Genere el Formato de Amonestación oficial en PDF para su firma física y, tras la comparecencia presencial del docente, concédale la prórroga de 24 horas continuas para la carga de notas.
+                                </p>
+                                <div class="d-flex flex-wrap align-items-center">
+                                    <a href="generar_amonestacion_pdf.php?id=${amonId}" target="_blank" class="btn btn-danger btn-sm mr-2 mb-2">
+                                        <i class="fas fa-file-pdf mr-1"></i> Descargar Formato de Amonestación (PDF)
+                                    </a>
+                                    <button type="button" class="btn btn-warning btn-sm mb-2 btn-habilitar-24h" data-id="${amonId}">
+                                        <i class="fas fa-clock mr-1"></i> Habilitar 24 Horas al Docente
+                                    </button>
+                                </div>
+                            </div>`;
+                        }
+
                         const html = `
                             <div class="row pb-3 mb-3 border-bottom">
                                 <div class="col-md-7">
@@ -518,7 +550,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <small class="text-muted"><i class="far fa-clock mr-1"></i>${m.fecha_formateada}</small>
                                 </div>
                             </div>
-                            <div class="mensaje-cuerpo p-3 bg-light rounded" style="white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6;">${escapeHtml(m.mensaje)}</div>
+                            <div class="mensaje-cuerpo p-3 bg-light rounded" style="white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6;">${escapeHtml(textoLimpio)}</div>
+                            ${amonHtml}
                         `;
                         $('#modalMsgBody').html(html);
 
@@ -576,7 +609,79 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     });
+
+    // Delegación para botón de habilitar 24 horas al docente
+    $(document).on('click', '.btn-habilitar-24h', function() {
+        const amonId = $(this).data('id');
+        const btn = $(this);
+
+        const ejecutarHabilitacion = function() {
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Habilitando...');
+
+            const fd = new FormData();
+            fd.append('id', amonId);
+
+            fetch('ajax_habilitar_docente_24h.php', {
+                method: 'POST',
+                body: fd
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡24 Horas Habilitadas!',
+                            text: res.message,
+                            confirmButtonColor: '#28a745'
+                        });
+                    } else {
+                        alert(res.message);
+                    }
+                    btn.replaceWith(`<span class="badge badge-success p-2 mr-2 mb-2"><i class="fas fa-check-circle mr-1"></i> Habilitado hasta: ${res.habilitado_hasta}</span>`);
+                } else {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: res.message || 'No se pudo habilitar al docente.',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    } else {
+                        alert(res.message || 'Error al habilitar docente.');
+                    }
+                    btn.prop('disabled', false).html('<i class="fas fa-clock mr-1"></i> Habilitar 24 Horas al Docente');
+                }
+            })
+            .catch(err => {
+                alert('Error de conexión al habilitar al docente.');
+                btn.prop('disabled', false).html('<i class="fas fa-clock mr-1"></i> Habilitar 24 Horas al Docente');
+            });
+        };
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: '¿Habilitar 24 Horas al Docente?',
+                text: 'El docente compareció ante Control de Estudios. Se habilitará el sistema durante 24 horas continuas a partir de este momento para que proceda a subir sus notas.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ffc107',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, Habilitar 24h',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    ejecutarHabilitacion();
+                }
+            });
+        } else {
+            if (confirm('¿Confirmar que el docente compareció y habilitarle 24 horas continuas para carga de notas?')) {
+                ejecutarHabilitacion();
+            }
+        }
+    });
 });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <?php include("includes/footer.php"); ?>
