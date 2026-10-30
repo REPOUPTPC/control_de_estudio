@@ -142,6 +142,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($est_target_id > 0) {
             if ($action === 'adicion_retiro') {
+                $eval_ar = function_exists('verificarElegibilidadAdicionRetiro') ? verificarElegibilidadAdicionRetiro($est_target_id) : ['es_apto' => false, 'motivo' => 'Función no disponible'];
+                if (!$eval_ar['es_apto']) {
+                    $_SESSION['flash_admin_solicitud'] = [
+                        'mensaje' => 'No se puede procesar el trámite: ' . $eval_ar['motivo'],
+                        'tipo' => 'danger',
+                        'tab' => 'constancias',
+                        'id_estudiante' => $est_target_id
+                    ];
+                    header("Location: constancias.php?id=$est_target_id");
+                    exit();
+                }
+
                 $rets = isset($_POST['retiros']) && is_array($_POST['retiros']) ? array_map('intval', $_POST['retiros']) : [];
                 $adcs = isset($_POST['adiciones']) && is_array($_POST['adiciones']) ? array_map('intval', $_POST['adiciones']) : [];
                 
@@ -329,6 +341,12 @@ if ($estudiante) {
     $pendientes_arr = array_filter($solicitudes_estudiante, function($s) { return $s['status'] === 'pendiente'; });
     $cant_pendientes_est = count($pendientes_arr);
     
+    // Evaluación institucional: Adición y Retiro (Únicamente Automotriz y Térmica, primeras 2 semanas)
+    $eval_adicion_retiro = function_exists('verificarElegibilidadAdicionRetiro') 
+        ? verificarElegibilidadAdicionRetiro($estudiante['id']) 
+        : ['es_apto' => false, 'carrera_valida' => false, 'lapso_valido' => false, 'motivo' => ''];
+    $es_apto_adicion_retiro = !empty($eval_adicion_retiro['es_apto']);
+    
     if ($cant_pendientes_est > 0 && !isset($_POST['aprobar_solicitud']) && !isset($_POST['rechazar_solicitud']) && empty($mensaje)) {
         $tab_activa = 'solicitudes';
     }
@@ -515,10 +533,23 @@ include("includes/head.php");
 
                                             <!-- 2. Adición / Retiro -->
                                             <div class="col-sm-6 mb-2">
-                                                <button type="button" class="btn btn-outline-info btn-block text-left font-weight-bold" 
-                                                        data-toggle="modal" data-target="#modalAdminAdicionRetiro">
-                                                    <i class="fas fa-exchange-alt mr-1 text-info"></i> Adición / Retiro de Materias
-                                                </button>
+                                                <?php if ($es_apto_adicion_retiro): ?>
+                                                    <button type="button" class="btn btn-outline-info btn-block text-left font-weight-bold d-flex justify-content-between align-items-center" 
+                                                            data-toggle="modal" data-target="#modalAdminAdicionRetiro">
+                                                        <span><i class="fas fa-exchange-alt mr-1 text-info"></i> Adición / Retiro de Materias</span>
+                                                        <span class="badge badge-success"><?= $eval_adicion_retiro['dias_restantes'] ?> DÍAS</span>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn btn-outline-secondary btn-block text-left font-weight-bold d-flex justify-content-between align-items-center opacity-75" 
+                                                            data-toggle="modal" data-target="#modalAdminNoAptoAdicionRetiro">
+                                                        <span><i class="fas fa-exchange-alt mr-1 text-muted"></i> Adición / Retiro de Materias</span>
+                                                        <?php if (!empty($eval_adicion_retiro['carrera_valida'])): ?>
+                                                            <span class="badge badge-warning text-dark">LAPSO CERRADO</span>
+                                                        <?php else: ?>
+                                                            <span class="badge badge-secondary">NO APLICA</span>
+                                                        <?php endif; ?>
+                                                    </button>
+                                                <?php endif; ?>
                                             </div>
 
                                             <!-- 3. Cambio de Sección -->
@@ -732,6 +763,42 @@ include("includes/head.php");
                 <!-- MODALES INTERACTIVOS DE TRÁMITES DESDE ADMINISTRACIÓN -->
                 <!-- ========================================================================= -->
 
+                <!-- MODAL ADMIN ADICIÓN Y RETIRO NO APTO / NO DISPONIBLE -->
+                <div class="modal fade" id="modalAdminNoAptoAdicionRetiro" tabindex="-1" role="dialog" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content border-info shadow">
+                            <div class="modal-header bg-info text-white justify-content-center position-relative">
+                                <h5 class="modal-title font-weight-bold text-uppercase text-center">
+                                    <i class="fas fa-info-circle mr-2"></i> ADICIÓN Y RETIRO DE MATERIAS
+                                </h5>
+                                <button type="button" class="close text-white position-absolute" style="right: 15px; top: 15px;" data-dismiss="modal" aria-label="Cerrar">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-exchange-alt text-info" style="font-size: 3.5rem;"></i>
+                                </div>
+                                <h5 class="font-weight-bold text-dark text-uppercase mb-3 text-center">NORMATIVA INSTITUCIONAL</h5>
+                                <div class="alert alert-warning text-uppercase small font-weight-bold text-center mb-3">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    <?= htmlspecialchars($eval_adicion_retiro['motivo'] ?? 'Trámite no disponible.'); ?>
+                                </div>
+                                <div class="text-muted text-left small mb-0 font-weight-bold">
+                                    <p class="mb-1"><i class="fas fa-check-circle text-success mr-1"></i> <strong>Carreras Autorizadas:</strong> Únicamente Mecánica Automotriz y Mecánica Térmica.</p>
+                                    <p class="mb-1"><i class="fas fa-clock text-primary mr-1"></i> <strong>Lapso Reglamentario:</strong> Exclusivamente durante las 2 primeras semanas de cada período académico.</p>
+                                    <p class="mb-0"><i class="fas fa-university text-secondary mr-1"></i> Esta restricción aplica de acuerdo con las disposiciones del reglamento de Control de Estudios de la UPTPC.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light justify-content-center">
+                                <button type="button" class="btn btn-secondary font-weight-bold text-uppercase px-4 shadow-sm" data-dismiss="modal">
+                                    <i class="fas fa-times mr-1"></i> ENTENDIDO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 1. MODAL ADMIN ADICIÓN Y RETIRO -->
                 <div class="modal fade" id="modalAdminAdicionRetiro" tabindex="-1" role="dialog" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
@@ -748,6 +815,11 @@ include("includes/head.php");
                                     <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                                 </div>
                                 <div class="modal-body">
+                                    <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                                        <div class="alert alert-info py-2 px-3 small mb-3">
+                                            <i class="fas fa-info-circle mr-1"></i> <strong>Período Reglamentario Activo:</strong> Carrera: <strong><?= htmlspecialchars($carrera['nombre_carrera'] ?? '') ?></strong> | Lapso: <strong><?= htmlspecialchars($eval_adicion_retiro['periodo_nombre'] ?? '') ?></strong> (Vence: <strong><?= $eval_adicion_retiro['fecha_limite'] ?? '' ?></strong> - Quedan <strong><?= $eval_adicion_retiro['dias_restantes'] ?? 0 ?> días</strong>).
+                                        </div>
+                                    <?php endif; ?>
                                     <div class="alert alert-secondary py-1 px-2 small mb-3">
                                         <i class="fas fa-layer-group mr-1"></i> Nivel del Estudiante: <strong class="text-uppercase"><?php echo htmlspecialchars($estudiante['trayecto_nombre'] ?? 'Nivel Actual'); ?></strong> (Materias de adición filtradas estrictamente por su trayecto).
                                     </div>
