@@ -14789,6 +14789,161 @@ function esAptoParaPasantias($estudiante_id) {
     }
 }
 
+/**
+ * Determina si un estudiante es apto para el proceso de Adición y Retiro / Retiro de Asignaturas.
+ * REGLAS INSTITUCIONALES UPTPC:
+ * 1. Únicamente para las carreras Mecánica Automotriz y Mecánica Térmica.
+ * 2. Solo durante las 2 primeras semanas de cada período académico activo.
+ *
+ * @param int $estudiante_id ID del estudiante
+ * @return array Información detallada de aptitud y causas
+ */
+function verificarElegibilidadAdicionRetiro($estudiante_id) {
+    global $db;
+    try {
+        $estudiante_id = intval($estudiante_id);
+        if ($estudiante_id <= 0) {
+            return [
+                'es_apto' => false,
+                'motivo' => 'ID de estudiante inválido.',
+                'carrera_valida' => false,
+                'lapso_valido' => false,
+                'carrera_nombre' => '',
+                'periodo_nombre' => ''
+            ];
+        }
+
+        // 1. Obtener datos del estudiante y carrera
+        $query_carrera = "SELECT c.id_carrera, c.nombre_carrera, c.cod_carrera, u.status, u.estudiante 
+                          FROM users u 
+                          LEFT JOIN carreras c ON u.carrera = c.id_carrera 
+                          WHERE u.id = ? LIMIT 1";
+        $stmt_c = $db->prepare($query_carrera);
+        if (!$stmt_c) {
+            return [
+                'es_apto' => false,
+                'motivo' => 'Error de conexión con la base de datos.',
+                'carrera_valida' => false,
+                'lapso_valido' => false
+            ];
+        }
+        $stmt_c->bind_param("i", $estudiante_id);
+        $stmt_c->execute();
+        $res_c = $stmt_c->get_result();
+        $est = $res_c ? $res_c->fetch_assoc() : null;
+        $stmt_c->close();
+
+        if (!$est || $est['estudiante'] != 1 || $est['status'] != 1) {
+            return [
+                'es_apto' => false,
+                'motivo' => 'El usuario no es un estudiante activo en el sistema.',
+                'carrera_valida' => false,
+                'lapso_valido' => false
+            ];
+        }
+
+        $id_carrera = intval($est['id_carrera'] ?? 0);
+        $nombre_carrera = strtoupper(trim($est['nombre_carrera'] ?? ''));
+
+        // 2. Validar carrera (Únicamente Automotriz y Térmica)
+        // IDs: 15 (PTF EN MECANICA AUTOMOTRIZ), 19 (PNF EN MECANICA TERMICA)
+        $es_automotriz = ($id_carrera === 15 || strpos($nombre_carrera, 'AUTOMOTRIZ') !== false);
+        $es_termica = ($id_carrera === 19 || strpos($nombre_carrera, 'TERMICA') !== false || strpos($nombre_carrera, 'TÉRMICA') !== false);
+        $es_carrera_permitida = ($es_automotriz || $es_termica);
+
+        if (!$es_carrera_permitida) {
+            return [
+                'es_apto' => false,
+                'motivo' => 'El proceso de Adición y Retiro es únicamente para las carreras Mecánica Automotriz y Mecánica Térmica.',
+                'carrera_valida' => false,
+                'lapso_valido' => false,
+                'carrera_nombre' => $est['nombre_carrera'] ?? 'Sin Carrera',
+                'carrera_id' => $id_carrera
+            ];
+        }
+
+        // 3. Validar período académico y las 2 primeras semanas
+        $periodo = function_exists('obtenerPeriodoActivo') ? obtenerPeriodoActivo() : null;
+        if (!$periodo || empty($periodo['id_periodo'])) {
+            return [
+                'es_apto' => false,
+                'motivo' => 'No hay un período académico activo en este momento.',
+                'carrera_valida' => true,
+                'lapso_valido' => false,
+                'carrera_nombre' => $est['nombre_carrera'] ?? '',
+                'carrera_id' => $id_carrera
+            ];
+        }
+
+        $fecha_inicio = $periodo['fecha_inicio'] ?? null;
+        if (empty($fecha_inicio) || $fecha_inicio === '0000-00-00') {
+            return [
+                'es_apto' => false,
+                'motivo' => 'La fecha de inicio del período académico actual no está configurada.',
+                'carrera_valida' => true,
+                'lapso_valido' => false,
+                'carrera_nombre' => $est['nombre_carrera'] ?? '',
+                'periodo_nombre' => $periodo['nombre_periodo'] ?? ''
+            ];
+        }
+
+        $fecha_inicio_ts = strtotime($fecha_inicio);
+        // 2 semanas = 14 días contados desde la fecha de inicio (inclusive)
+        $fecha_limite_ts = strtotime('+14 days 23:59:59', $fecha_inicio_ts);
+        $fecha_limite_str = date('d/m/Y', $fecha_limite_ts);
+        $hoy_ts = time();
+
+        if ($hoy_ts < $fecha_inicio_ts) {
+            return [
+                'es_apto' => false,
+                'motivo' => "El período académico {$periodo['nombre_periodo']} aún no ha iniciado (Fecha de inicio: " . date('d/m/Y', $fecha_inicio_ts) . ").",
+                'carrera_valida' => true,
+                'lapso_valido' => false,
+                'carrera_nombre' => $est['nombre_carrera'] ?? '',
+                'periodo_nombre' => $periodo['nombre_periodo'] ?? '',
+                'fecha_inicio' => date('d/m/Y', $fecha_inicio_ts),
+                'fecha_limite' => $fecha_limite_str
+            ];
+        }
+
+        if ($hoy_ts > $fecha_limite_ts) {
+            return [
+                'es_apto' => false,
+                'motivo' => "El lapso de Adición y Retiro finalizó. Solo está permitido durante las 2 primeras semanas del período académico (culminó el $fecha_limite_str).",
+                'carrera_valida' => true,
+                'lapso_valido' => false,
+                'carrera_nombre' => $est['nombre_carrera'] ?? '',
+                'periodo_nombre' => $periodo['nombre_periodo'] ?? '',
+                'fecha_inicio' => date('d/m/Y', $fecha_inicio_ts),
+                'fecha_limite' => $fecha_limite_str
+            ];
+        }
+
+        $segundos_restantes = $fecha_limite_ts - $hoy_ts;
+        $dias_restantes = max(0, ceil($segundos_restantes / 86400));
+
+        return [
+            'es_apto' => true,
+            'motivo' => 'Estudiante habilitado para el proceso de Adición y Retiro.',
+            'carrera_valida' => true,
+            'lapso_valido' => true,
+            'dias_restantes' => $dias_restantes,
+            'fecha_inicio' => date('d/m/Y', $fecha_inicio_ts),
+            'fecha_limite' => $fecha_limite_str,
+            'carrera_nombre' => $est['nombre_carrera'] ?? '',
+            'periodo_nombre' => $periodo['nombre_periodo'] ?? ''
+        ];
+    } catch (Exception $e) {
+        error_log("Error en verificarElegibilidadAdicionRetiro: " . $e->getMessage());
+        return [
+            'es_apto' => false,
+            'motivo' => 'Error al evaluar requisitos de Adición y Retiro: ' . $e->getMessage(),
+            'carrera_valida' => false,
+            'lapso_valido' => false
+        ];
+    }
+}
+
 // =============================================
 // FUNCIONES PARA EVALUACIÓN DE GRADOS (TSU Y GRADO COMPLETO)
 // =============================================
