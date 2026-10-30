@@ -168,7 +168,12 @@ include(__DIR__ . '/../includes/head.php');
                     </form>
                     
                     <?php if (!$periodo_inactivo): ?>
-                        <a href="asignar_estudiantes.php?id=<?= $id_seccion ?>" class="btn btn-warning btn-sm btn-block mb-1">Asignar Estudiantes</a>
+                        <form method="POST" action="asignar_estudiantes.php" class="mb-1">
+                            <input type="hidden" name="id" value="<?= $id_seccion ?>">
+                            <button type="submit" class="btn btn-warning btn-sm btn-block">
+                                <i class="fas fa-users mr-1"></i> Asignar Estudiantes
+                            </button>
+                        </form>
                     <?php endif; ?>
                     
                     <a href="horario_seccion.php?id=<?= $id_seccion ?>" class="btn btn-info btn-sm btn-block mb-1">Ver Horario Semanal</a>
