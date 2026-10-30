@@ -1415,6 +1415,7 @@ include("includes/head.php");
                 <!-- Se llena dinámicamente vía JS -->
             </div>
             <div class="modal-footer bg-light d-flex justify-content-between">
+                <input type="hidden" id="modal_detalle_solicitud_id" value="">
                 <button type="button" class="btn btn-outline-danger font-weight-bold btn-modal-detalle-pdf" id="btnModalDetalleVerPdf">
             <i class="fas fa-file-pdf mr-1"></i> Ver Comprobante PDF
         </button>
@@ -1542,6 +1543,7 @@ include("includes/head.php");
 
 
 let currentPdfBlobUrl = null;
+let reabrirDetalleAlCerrarPdf = false;
 
 function mostrarPDFEnModal(params, titulo) {
     titulo = titulo || 'DOCUMENTO OFICIAL';
@@ -1613,6 +1615,10 @@ function mostrarPDFEnModal(params, titulo) {
             btnDescargar.href = currentPdfBlobUrl;
             btnDescargar.download = (titulo.replace(/[^a-zA-Z0-9_-]/g, '_') || 'documento') + '.pdf';
         }
+        const btnExt = document.getElementById('btnAbrirNuevaPestanaPDF');
+        if (btnExt) {
+            btnExt.href = currentPdfBlobUrl;
+        }
     })
     .catch(error => {
         console.error('Error al generar PDF:', error);
@@ -1650,7 +1656,26 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         const solId = btnSol.getAttribute('data-solicitud-id');
         const titulo = btnSol.getAttribute('data-titulo') || ('COMPROBANTE #' + solId);
+        reabrirDetalleAlCerrarPdf = false;
         mostrarPDFEnModal({ solicitud_id: solId }, titulo);
+        return;
+    }
+
+    // 2.1 Botón Ver Comprobante PDF dentro del modal Detalle de Solicitud
+    const btnDetallePdf = e.target.closest('#btnModalDetalleVerPdf, .btn-modal-detalle-pdf');
+    if (btnDetallePdf) {
+        e.preventDefault();
+        const solId = btnDetallePdf.getAttribute('data-solicitud-id') || (document.getElementById('modal_detalle_solicitud_id') ? document.getElementById('modal_detalle_solicitud_id').value : '');
+        if (!solId) {
+            alert('No se pudo identificar la solicitud seleccionada.');
+            return;
+        }
+        const titulo = btnDetallePdf.getAttribute('data-titulo') || ('COMPROBANTE #' + solId);
+        reabrirDetalleAlCerrarPdf = true;
+        $('#modalDetalleSolicitudAdmin').modal('hide');
+        setTimeout(function() {
+            mostrarPDFEnModal({ solicitud_id: solId }, titulo);
+        }, 350);
         return;
     }
 
@@ -1926,6 +1951,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (inputPdf) {
                 inputPdf.value = data.id;
             }
+            var btnPdf = document.getElementById('btnModalDetalleVerPdf');
+            if (btnPdf) {
+                btnPdf.setAttribute('data-solicitud-id', data.id);
+                btnPdf.setAttribute('data-titulo', 'COMPROBANTE DE SOLICITUD #' + data.id);
+            }
             $('#modalDetalleSolicitudAdmin').modal('show');
         });
     });
@@ -2010,10 +2040,16 @@ function abrirModalPDF(url, titulo) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Limpiar iframe al cerrar modal
+    // Limpiar iframe al cerrar modal y restaurar modal de detalle si procede
     $('#modalVisualizadorPDF').on('hidden.bs.modal', function () {
         var iframe = document.getElementById('iframeVisualizadorPDF');
         if (iframe) iframe.src = '';
+        if (typeof reabrirDetalleAlCerrarPdf !== 'undefined' && reabrirDetalleAlCerrarPdf) {
+            reabrirDetalleAlCerrarPdf = false;
+            setTimeout(function() {
+                $('#modalDetalleSolicitudAdmin').modal('show');
+            }, 250);
+        }
     });
 
     // 1. Botones directos de constancias (Inscripción / Estudios)

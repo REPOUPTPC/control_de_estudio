@@ -106,6 +106,33 @@ include(__DIR__ . '/../includes/head.php');
     </div></div>
 </div>
 
+<!-- Modal Detalle Estudiante -->
+<div class="modal fade" id="detalleModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title font-weight-bold mb-0">
+                    <i class="fas fa-id-card mr-2"></i> Detalles del Estudiante
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div id="detalleEstudianteContent">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando detalles del estudiante...</p>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">
+                    <i class="fas fa-times mr-1"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="container-fluid py-2">
     <div class="row mb-2">
         <div class="col-12 d-flex justify-content-between flex-wrap">
@@ -195,7 +222,7 @@ include(__DIR__ . '/../includes/head.php');
                                     <th>Nombre</th>
                                     <th>Cédula</th>
                                     <th>Fecha Inscripción</th>
-                                    <th>Acciones</th>
+                                    <th style="min-width: 190px;" class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -204,13 +231,20 @@ include(__DIR__ . '/../includes/head.php');
                                     <td><?= htmlspecialchars($e['nombre']) ?></td>
                                     <td><?= htmlspecialchars($e['idusuario']) ?></td>
                                     <td><?= $e['fecha_inscripcion'] ?></td>
-                                    <td>
-                                        <button class="btn btn-danger btn-sm btn-retirar" 
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-info btn-sm btn-ver-detalle mr-1" 
                                                 data-id="<?= $e['id'] ?>" 
-                                                data-nombre="<?= htmlspecialchars($e['nombre']) ?>">
+                                                data-nombre="<?= htmlspecialchars($e['nombre']) ?>"
+                                                title="Ver más detalles del estudiante">
+                                            <i class="fas fa-eye"></i> Ver Detalles
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm btn-retirar" 
+                                                data-id="<?= $e['id'] ?>" 
+                                                data-nombre="<?= htmlspecialchars($e['nombre']) ?>"
+                                                title="Retirar estudiante">
                                             <i class="fas fa-user-minus"></i> Retirar
                                         </button>
-                                    </div>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                                 <?php if (empty($estudiantes)): ?>
@@ -227,7 +261,36 @@ include(__DIR__ . '/../includes/head.php');
 
 <script>
 $(document).ready(function(){
-    $('.btn-retirar').click(function(){
+    $(document).on('click', '.btn-ver-detalle', function(e){
+        e.preventDefault();
+        var studentId = $(this).data('id');
+        var modalContent = document.getElementById('detalleEstudianteContent');
+        modalContent.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Cargando detalles del estudiante...</p></div>';
+        $('#detalleModal').modal('show');
+        
+        var formData = new FormData();
+        formData.append('id', studentId);
+        formData.append('admin_prefix', '../');
+        
+        fetch('../detalle_estudiante.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(response){
+            if (!response.ok) {
+                throw new Error('Error al cargar la información (código ' + response.status + ')');
+            }
+            return response.text();
+        })
+        .then(function(html){
+            modalContent.innerHTML = html;
+        })
+        .catch(function(error){
+            modalContent.innerHTML = '<div class="alert alert-danger m-3"><i class="fas fa-exclamation-triangle mr-2"></i>' + error.message + '</div>';
+        });
+    });
+
+    $(document).on('click', '.btn-retirar', function(){
         $('#modalIdUsuario').val($(this).data('id'));
         $('#modalConfirmacionBody').html('¿Está seguro de retirar a <strong>'+$(this).data('nombre')+'</strong> de la sección?');
         $('#confirmarRetiroModal').modal('show');
