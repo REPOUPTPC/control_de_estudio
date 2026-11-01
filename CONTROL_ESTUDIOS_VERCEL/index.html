@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Sitio en construcción de Control de Estudios UPTPC" />
+    <title>Control de Estudios UPTPC | Sitio en Construcción</title>
+    <link rel="icon" type="image/x-icon" href="img/favicon.svg" />
+    <style>
+      :root {
+        --uptpc-blue: #0d4ea3;
+        --uptpc-blue-dark: #082f6d;
+        --uptpc-blue-soft: #edf4ff;
+        --uptpc-gray: #4a4a4a;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #ffffff;
+        color: var(--uptpc-gray);
+      }
+
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 32px 18px;
+      }
+
+      .page-shell {
+        width: min(960px, 100%);
+        background: #fff;
+        border: 1px solid rgba(13, 78, 163, 0.1);
+        border-radius: 24px;
+        box-shadow: 0 20px 45px rgba(13, 78, 163, 0.08);
+        overflow: hidden;
+      }
+
+      .brand-row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 28px 24px 12px;
+        background: linear-gradient(180deg, #ffffff 0%, var(--uptpc-blue-soft) 100%);
+      }
+
+      .main-logo {
+        width: min(460px, 75vw);
+        height: auto;
+        display: block;
+      }
+
+      .hero {
+        text-align: center;
+        padding: 18px 24px 28px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgba(13, 78, 163, 0.08);
+        color: var(--uptpc-blue-dark);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.76rem;
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        color: var(--uptpc-blue-dark);
+        font-size: clamp(2.2rem, 5vw, 4rem);
+        line-height: 1.1;
+        letter-spacing: 0.06em;
+      }
+
+      .hero p {
+        max-width: 620px;
+        margin: 0 auto;
+        font-size: 1.08rem;
+        line-height: 1.7;
+        color: var(--uptpc-gray);
+      }
+
+      .status-dots {
+        margin-top: 22px;
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .status-dots span {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: rgba(13, 78, 163, 0.18);
+        display: inline-block;
+        animation: pulse 1.7s ease-in-out infinite;
+      }
+
+      .status-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .status-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(0.9); opacity: 0.45; }
+        50% { transform: scale(1.1); opacity: 1; }
+      }
+
+      .site-footer {
+        background: #f7faff;
+        border-top: 1px solid rgba(13, 78, 163, 0.12);
+        padding: 22px 24px 28px;
+      }
+
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        color: var(--uptpc-blue-dark);
+        font-size: 0.98rem;
+      }
+
+      .footer-brand img {
+        width: 52px;
+        height: auto;
+        display: block;
+      }
+
+      .footer-brand a,
+      .legal a {
+        color: var(--uptpc-blue);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .footer-brand a:hover,
+      .legal a:hover {
+        text-decoration: underline;
+      }
+
+      .legal {
+        text-align: center;
+        color: var(--uptpc-gray);
+        font-size: 0.96rem;
+        line-height: 1.7;
+      }
+
+      .legal p {
+        margin: 6px 0;
+      }
+
+      @media (max-width: 600px) {
+        .page-shell {
+          border-radius: 16px;
+        }
+
+        .brand-row {
+          padding-top: 22px;
+        }
+
+        .site-footer {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="brand-row" aria-label="Logotipo de Control de Estudios UPTPC">
+        <img src="./img/control_estudios.png" alt="Control de Estudios UPTPC" class="main-logo" />
+      </header>
+
+      <main class="hero">
+        <div class="badge">En desarrollo</div>
+        <h1>SITIO EN CONSTRUCCIÓN</h1>
+        <p>Estamos preparando una nueva experiencia digital para la comunidad universitaria. Pronto estaremos disponible con información, servicios y procesos académicos actualizados.</p>
+        <div class="status-dots" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="footer-brand">
+          <img src="./img/cyt.png" alt="Logo de la Unidad de Ciencia y Tecnología" />
+          <span>Potenciado por la <a href="https://www.uptpc.edu.ve/ciencia-y-tecnolog%C3%ADa" target="_blank" rel="noopener noreferrer">Unidad de Ciencia y Tecnología de la UPTPC</a></span>
+        </div>
+
+        <div class="legal">
+          <p>© 2026 UNIVERSIDAD POLITÉCNICA TERRITORIAL DE PUERTO CABELLO. Reservados Todos los Derechos.</p>
+          <p>Licencia de uso: <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-ND 4.0</a> | <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Licencia Pública General Apache 3.0</a></p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
