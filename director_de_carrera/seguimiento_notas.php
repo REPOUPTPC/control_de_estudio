@@ -5,9 +5,15 @@ ini_set('display_errors', '1');
 $titulopag = "Control y Seguimiento de Notas de Docentes - Director de Carrera";
 require_once(__DIR__ . '/../funciones/functions.php');
 
-if (!isLoggedIn() || (!isDirectorCarrera() && !isUser())) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+cargarPermisosUsuario();
+
+if (!isLoggedIn()) {
     header('location: ../login.php');
+    exit();
+}
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
     exit();
 }
 
@@ -24,7 +30,14 @@ $result_carrera = $db->query($query_carrera);
 $carrera_director = $result_carrera ? $result_carrera->fetch_assoc() : null;
 
 $id_carrera_director = intval($carrera_director['id_carrera'] ?? 0);
-$nombre_carrera_director = $carrera_director['nombre_carrera'] ?? 'Carrera No Asignada';
+if ($id_carrera_director <= 0 && isAdmin()) {
+    $id_carrera_director = intval($_SESSION['user']['carrera_di'] ?? $_SESSION['admin_selected_carrera_di'] ?? 1);
+    $cQuery = $db->query("SELECT nombre_carrera FROM carreras WHERE id_carrera = $id_carrera_director");
+    $cRow = $cQuery ? $cQuery->fetch_assoc() : null;
+    $nombre_carrera_director = $cRow['nombre_carrera'] ?? 'Carrera';
+} else {
+    $nombre_carrera_director = $carrera_director['nombre_carrera'] ?? 'Carrera No Asignada';
+}
 
 // Obtener período activo
 $periodo_activo = obtenerPeriodoActivo($db);

@@ -6,14 +6,23 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once('../funciones/functions.php');
 
+cargarPermisosUsuario();
+
 // Verificar autenticación y rol
-if (!isLoggedIn() || !isUser()) {
-    $_SESSION['msg'] = "Debes iniciar sesión como director de carrera para acceder";
+if (!isLoggedIn()) {
     header('location: ../login.php');
+    exit();
+}
+if (!isDirectorCarrera()) {
+    $_SESSION['error'] = "No tienes permisos de Director de Carrera para acceder a este módulo.";
+    header('location: ../profile_selector.php');
     exit();
 }
 
 $carreraId = $_SESSION['user']['carrera_di'] ?? 0;
+if (!$carreraId && isAdmin()) {
+    $carreraId = $_SESSION['admin_selected_carrera_di'] ?? 1;
+}
 if (!$carreraId) {
     $error_message = 'No se pudo determinar la carrera asignada.';
 }
@@ -67,8 +76,15 @@ include('includes/head.php');
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                        </div>
                         <div id="infoSeccion" class="mt-3"></div>
+                        <div id="btnPdfContainer" class="mt-3" style="display: none;">
+                            <form id="formPdfHorario" method="POST" action="../admin/pdf_horario_seccion.php" target="_blank" class="m-0 p-0">
+                                <input type="hidden" name="seccion_id" id="pdfSeccionId" value="">
+                                <button type="submit" id="btnDescargarPdf" class="btn btn-danger btn-block font-weight-bold shadow-sm">
+                                    <i class="fas fa-file-pdf mr-1"></i> Descargar Horario Oficial en PDF
+                                </button>
+                            </form>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -352,9 +368,13 @@ $(document).ready(function() {
         if (idSeccionActual) {
             cargarHorario(idSeccionActual);
             cargarInfoSeccion(idSeccionActual);
+            $('#btnPdfContainer').show();
+            $('#pdfSeccionId').val(idSeccionActual);
         } else {
             $('#horarioContainer').html('<div class="alert alert-info text-center"><i class="fas fa-info-circle"></i> Seleccione una sección para ver su horario.</div>');
             $('#infoSeccion').html('');
+            $('#pdfSeccionId').val('');
+            $('#btnPdfContainer').hide();
         }
     });
     

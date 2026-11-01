@@ -92,8 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $sol_id = intval($_POST['solicitud_id']);
             $observacion = trim($_POST['observacion_admin'] ?? '');
+            $id_periodo_reinc = intval($_POST['id_periodo_reincorporacion'] ?? 0);
             
-            $resultado = procesarAprobacionSolicitudAcademica($sol_id, $admin_id, $observacion);
+            $resultado = procesarAprobacionSolicitudAcademica($sol_id, $admin_id, $observacion, $id_periodo_reinc);
             if ($resultado['success']) {
                 $mensaje = $resultado['message'];
                 $tipo_mensaje = 'success';
@@ -141,6 +142,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($est_target_id > 0) {
             if ($action === 'adicion_retiro') {
+                $eval_ar = function_exists('verificarElegibilidadAdicionRetiro') ? verificarElegibilidadAdicionRetiro($est_target_id) : ['es_apto' => false, 'motivo' => 'Función no disponible'];
+                if (!$eval_ar['es_apto']) {
+                    $_SESSION['flash_admin_solicitud'] = [
+                        'mensaje' => 'No se puede procesar el trámite: ' . $eval_ar['motivo'],
+                        'tipo' => 'danger',
+                        'tab' => 'constancias',
+                        'id_estudiante' => $est_target_id
+                    ];
+                    header("Location: constancias.php?id=$est_target_id");
+                    exit();
+                }
+
                 $rets = isset($_POST['retiros']) && is_array($_POST['retiros']) ? array_map('intval', $_POST['retiros']) : [];
                 $adcs = isset($_POST['adiciones']) && is_array($_POST['adiciones']) ? array_map('intval', $_POST['adiciones']) : [];
                 
@@ -328,6 +341,12 @@ if ($estudiante) {
     $pendientes_arr = array_filter($solicitudes_estudiante, function($s) { return $s['status'] === 'pendiente'; });
     $cant_pendientes_est = count($pendientes_arr);
     
+    // Evaluación institucional: Adición y Retiro (Únicamente Automotriz y Térmica, primeras 2 semanas)
+    $eval_adicion_retiro = function_exists('verificarElegibilidadAdicionRetiro') 
+        ? verificarElegibilidadAdicionRetiro($estudiante['id']) 
+        : ['es_apto' => false, 'carrera_valida' => false, 'lapso_valido' => false, 'motivo' => ''];
+    $es_apto_adicion_retiro = !empty($eval_adicion_retiro['es_apto']);
+    
     if ($cant_pendientes_est > 0 && !isset($_POST['aprobar_solicitud']) && !isset($_POST['rechazar_solicitud']) && empty($mensaje)) {
         $tab_activa = 'solicitudes';
     }
@@ -514,10 +533,23 @@ include("includes/head.php");
 
                                             <!-- 2. Adición / Retiro -->
                                             <div class="col-sm-6 mb-2">
-                                                <button type="button" class="btn btn-outline-info btn-block text-left font-weight-bold" 
-                                                        data-toggle="modal" data-target="#modalAdminAdicionRetiro">
-                                                    <i class="fas fa-exchange-alt mr-1 text-info"></i> Adición / Retiro de Materias
-                                                </button>
+                                                <?php if ($es_apto_adicion_retiro): ?>
+                                                    <button type="button" class="btn btn-outline-info btn-block text-left font-weight-bold d-flex justify-content-between align-items-center" 
+                                                            data-toggle="modal" data-target="#modalAdminAdicionRetiro">
+                                                        <span><i class="fas fa-exchange-alt mr-1 text-info"></i> Adición / Retiro de Materias</span>
+                                                        <span class="badge badge-success"><?= $eval_adicion_retiro['dias_restantes'] ?> DÍAS</span>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn btn-outline-secondary btn-block text-left font-weight-bold d-flex justify-content-between align-items-center opacity-75" 
+                                                            data-toggle="modal" data-target="#modalAdminNoAptoAdicionRetiro">
+                                                        <span><i class="fas fa-exchange-alt mr-1 text-muted"></i> Adición / Retiro de Materias</span>
+                                                        <?php if (!empty($eval_adicion_retiro['carrera_valida'])): ?>
+                                                            <span class="badge badge-warning text-dark">LAPSO CERRADO</span>
+                                                        <?php else: ?>
+                                                            <span class="badge badge-secondary">NO APLICA</span>
+                                                        <?php endif; ?>
+                                                    </button>
+                                                <?php endif; ?>
                                             </div>
 
                                             <!-- 3. Cambio de Sección -->
@@ -731,6 +763,42 @@ include("includes/head.php");
                 <!-- MODALES INTERACTIVOS DE TRÁMITES DESDE ADMINISTRACIÓN -->
                 <!-- ========================================================================= -->
 
+                <!-- MODAL ADMIN ADICIÓN Y RETIRO NO APTO / NO DISPONIBLE -->
+                <div class="modal fade" id="modalAdminNoAptoAdicionRetiro" tabindex="-1" role="dialog" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content border-info shadow">
+                            <div class="modal-header bg-info text-white justify-content-center position-relative">
+                                <h5 class="modal-title font-weight-bold text-uppercase text-center">
+                                    <i class="fas fa-info-circle mr-2"></i> ADICIÓN Y RETIRO DE MATERIAS
+                                </h5>
+                                <button type="button" class="close text-white position-absolute" style="right: 15px; top: 15px;" data-dismiss="modal" aria-label="Cerrar">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-exchange-alt text-info" style="font-size: 3.5rem;"></i>
+                                </div>
+                                <h5 class="font-weight-bold text-dark text-uppercase mb-3 text-center">NORMATIVA INSTITUCIONAL</h5>
+                                <div class="alert alert-warning text-uppercase small font-weight-bold text-center mb-3">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    <?= htmlspecialchars($eval_adicion_retiro['motivo'] ?? 'Trámite no disponible.'); ?>
+                                </div>
+                                <div class="text-muted text-left small mb-0 font-weight-bold">
+                                    <p class="mb-1"><i class="fas fa-check-circle text-success mr-1"></i> <strong>Carreras Autorizadas:</strong> Únicamente Mecánica Automotriz y Mecánica Térmica.</p>
+                                    <p class="mb-1"><i class="fas fa-clock text-primary mr-1"></i> <strong>Lapso Reglamentario:</strong> Exclusivamente durante las 2 primeras semanas de cada período académico.</p>
+                                    <p class="mb-0"><i class="fas fa-university text-secondary mr-1"></i> Esta restricción aplica de acuerdo con las disposiciones del reglamento de Control de Estudios de la UPTPC.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light justify-content-center">
+                                <button type="button" class="btn btn-secondary font-weight-bold text-uppercase px-4 shadow-sm" data-dismiss="modal">
+                                    <i class="fas fa-times mr-1"></i> ENTENDIDO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 1. MODAL ADMIN ADICIÓN Y RETIRO -->
                 <div class="modal fade" id="modalAdminAdicionRetiro" tabindex="-1" role="dialog" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
@@ -747,6 +815,11 @@ include("includes/head.php");
                                     <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                                 </div>
                                 <div class="modal-body">
+                                    <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                                        <div class="alert alert-info py-2 px-3 small mb-3">
+                                            <i class="fas fa-info-circle mr-1"></i> <strong>Período Reglamentario Activo:</strong> Carrera: <strong><?= htmlspecialchars($carrera['nombre_carrera'] ?? '') ?></strong> | Lapso: <strong><?= htmlspecialchars($eval_adicion_retiro['periodo_nombre'] ?? '') ?></strong> (Vence: <strong><?= $eval_adicion_retiro['fecha_limite'] ?? '' ?></strong> - Quedan <strong><?= $eval_adicion_retiro['dias_restantes'] ?? 0 ?> días</strong>).
+                                        </div>
+                                    <?php endif; ?>
                                     <div class="alert alert-secondary py-1 px-2 small mb-3">
                                         <i class="fas fa-layer-group mr-1"></i> Nivel del Estudiante: <strong class="text-uppercase"><?php echo htmlspecialchars($estudiante['trayecto_nombre'] ?? 'Nivel Actual'); ?></strong> (Materias de adición filtradas estrictamente por su trayecto).
                                     </div>
@@ -1414,6 +1487,7 @@ include("includes/head.php");
                 <!-- Se llena dinámicamente vía JS -->
             </div>
             <div class="modal-footer bg-light d-flex justify-content-between">
+                <input type="hidden" id="modal_detalle_solicitud_id" value="">
                 <button type="button" class="btn btn-outline-danger font-weight-bold btn-modal-detalle-pdf" id="btnModalDetalleVerPdf">
             <i class="fas fa-file-pdf mr-1"></i> Ver Comprobante PDF
         </button>
@@ -1449,6 +1523,29 @@ include("includes/head.php");
                     </div>
                     <p id="aprobarTextoConfirmacion" class="mb-3 font-weight-bold text-dark"></p>
                     
+                    <!-- Selector de período para Reincorporación -->
+                    <div id="divPeriodoReincorporacion" style="display:none;" class="form-group mb-3 p-3 bg-light rounded border border-success">
+                        <label class="font-weight-bold text-success small text-uppercase mb-1">
+                            <i class="fas fa-calendar-check mr-1"></i> Período Académico de Reincorporación <span class="text-danger">*</span>:
+                        </label>
+                        <select name="id_periodo_reincorporacion" id="selectPeriodoReincorporacion" class="form-control form-control-sm font-weight-bold">
+                            <?php 
+                            $res_p_reinc = $db->query("SELECT id_periodo, nombre_periodo, activo FROM periodos_academicos ORDER BY id_periodo DESC");
+                            if ($res_p_reinc) {
+                                while ($pr = $res_p_reinc->fetch_assoc()) {
+                                    $is_act = ($pr['activo'] == 1);
+                                    echo '<option value="' . $pr['id_periodo'] . '" ' . ($is_act ? 'selected' : '') . '>';
+                                    echo htmlspecialchars($pr['nombre_periodo']) . ($is_act ? ' (Activo)' : '');
+                                    echo '</option>';
+                                }
+                            }
+                            ?>
+                        </select>
+                        <small class="form-text text-muted mt-1">
+                            <i class="fas fa-info-circle text-info mr-1"></i> Control de Estudios define en qué período se incorpora. El sistema evaluará el avance del estudiante para asignarlo al trayecto y sección correspondiente, o dejarlo en espera activa si aún no hay sección disponible.
+                        </small>
+                    </div>
+
                     <div class="form-group mb-0">
                         <label class="small font-weight-bold text-muted text-uppercase">Observación Administrativa (Opcional):</label>
                         <textarea class="form-control" name="observacion_admin" rows="2" maxlength="100" placeholder="Notas internas o comentarios para el estudiante..."></textarea>
@@ -1518,6 +1615,7 @@ include("includes/head.php");
 
 
 let currentPdfBlobUrl = null;
+let reabrirDetalleAlCerrarPdf = false;
 
 function mostrarPDFEnModal(params, titulo) {
     titulo = titulo || 'DOCUMENTO OFICIAL';
@@ -1589,6 +1687,10 @@ function mostrarPDFEnModal(params, titulo) {
             btnDescargar.href = currentPdfBlobUrl;
             btnDescargar.download = (titulo.replace(/[^a-zA-Z0-9_-]/g, '_') || 'documento') + '.pdf';
         }
+        const btnExt = document.getElementById('btnAbrirNuevaPestanaPDF');
+        if (btnExt) {
+            btnExt.href = currentPdfBlobUrl;
+        }
     })
     .catch(error => {
         console.error('Error al generar PDF:', error);
@@ -1626,7 +1728,26 @@ document.addEventListener('click', function(e) {
         e.preventDefault();
         const solId = btnSol.getAttribute('data-solicitud-id');
         const titulo = btnSol.getAttribute('data-titulo') || ('COMPROBANTE #' + solId);
+        reabrirDetalleAlCerrarPdf = false;
         mostrarPDFEnModal({ solicitud_id: solId }, titulo);
+        return;
+    }
+
+    // 2.1 Botón Ver Comprobante PDF dentro del modal Detalle de Solicitud
+    const btnDetallePdf = e.target.closest('#btnModalDetalleVerPdf, .btn-modal-detalle-pdf');
+    if (btnDetallePdf) {
+        e.preventDefault();
+        const solId = btnDetallePdf.getAttribute('data-solicitud-id') || (document.getElementById('modal_detalle_solicitud_id') ? document.getElementById('modal_detalle_solicitud_id').value : '');
+        if (!solId) {
+            alert('No se pudo identificar la solicitud seleccionada.');
+            return;
+        }
+        const titulo = btnDetallePdf.getAttribute('data-titulo') || ('COMPROBANTE #' + solId);
+        reabrirDetalleAlCerrarPdf = true;
+        $('#modalDetalleSolicitudAdmin').modal('hide');
+        setTimeout(function() {
+            mostrarPDFEnModal({ solicitud_id: solId }, titulo);
+        }, 350);
         return;
     }
 
@@ -1902,6 +2023,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (inputPdf) {
                 inputPdf.value = data.id;
             }
+            var btnPdf = document.getElementById('btnModalDetalleVerPdf');
+            if (btnPdf) {
+                btnPdf.setAttribute('data-solicitud-id', data.id);
+                btnPdf.setAttribute('data-titulo', 'COMPROBANTE DE SOLICITUD #' + data.id);
+            }
             $('#modalDetalleSolicitudAdmin').modal('show');
         });
     });
@@ -1915,6 +2041,15 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('aprobar_solicitud_id').value = id;
             document.getElementById('aprobarTextoConfirmacion').innerHTML = '¿Estás seguro de <strong>APROBAR</strong> la solicitud <strong>#' + id + '</strong> (' + tipo.toUpperCase() + ') del estudiante <strong>' + nombre + '</strong>?';
             
+            var divReinc = document.getElementById('divPeriodoReincorporacion');
+            if (divReinc) {
+                if (tipo === 'constancia_reincorporacion' || tipo === 'reincorporacion') {
+                    divReinc.style.display = 'block';
+                } else {
+                    divReinc.style.display = 'none';
+                }
+            }
+
             $('#modalConfirmarAprobacion').modal('show');
         });
     });
@@ -1977,10 +2112,16 @@ function abrirModalPDF(url, titulo) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Limpiar iframe al cerrar modal
+    // Limpiar iframe al cerrar modal y restaurar modal de detalle si procede
     $('#modalVisualizadorPDF').on('hidden.bs.modal', function () {
         var iframe = document.getElementById('iframeVisualizadorPDF');
         if (iframe) iframe.src = '';
+        if (typeof reabrirDetalleAlCerrarPdf !== 'undefined' && reabrirDetalleAlCerrarPdf) {
+            reabrirDetalleAlCerrarPdf = false;
+            setTimeout(function() {
+                $('#modalDetalleSolicitudAdmin').modal('show');
+            }, 250);
+        }
     });
 
     // 1. Botones directos de constancias (Inscripción / Estudios)

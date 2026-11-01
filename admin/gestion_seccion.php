@@ -791,9 +791,12 @@ include("includes/head.php");
         <a href="gestion_seccion.php?action=view&id=<?= $seccion_id ?>" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Volver a la sección
         </a>
-        <a class="btn btn-success float-right ml-2" href="pdf_horario_seccion.php?seccion_id=<?= $seccion_id ?>" target="_blank">
-            <i class="fas fa-file-pdf"></i> Descargar PDF
-        </a>
+        <form method="POST" action="pdf_horario_seccion.php" target="_blank" class="d-inline float-right ml-2 m-0 p-0">
+            <input type="hidden" name="seccion_id" value="<?= $seccion_id ?>">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-file-pdf"></i> Descargar PDF
+            </button>
+        </form>
         
     </div>
     
@@ -820,13 +823,34 @@ include("includes/head.php");
                 </div>
                 
                 <?php
-                // Construir tabla similar a la vista de docente: horas x dias con rowspan para bloques
+                // Construir tabla en formato de 30 minutos con rowspan para bloques
                 $dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                
+                $turno_sec = $seccion['turno'] ?? 'Diurno';
+                $inicio_h = ($turno_sec === 'Nocturno') ? 17 : 7;
+                $fin_h = ($turno_sec === 'Nocturno') ? 21 : 18;
+
+                // Expandir si hay clases fuera del rango base
+                foreach ($horarios as $h) {
+                    $ini_h_val = (int)substr($h['hora_inicio'], 0, 2);
+                    $fin_ts = strtotime($h['hora_fin']);
+                    $fin_h_val = (int)date('H', $fin_ts);
+                    if ((int)date('i', $fin_ts) > 0) $fin_h_val++;
+                    if ($ini_h_val < $inicio_h) $inicio_h = $ini_h_val;
+                    if ($fin_h_val > $fin_h) $fin_h = $fin_h_val;
+                }
+
                 $horas_disponibles = [];
-                for ($h = 7; $h <= 16; $h++) $horas_disponibles[] = sprintf('%02d:00', $h);
+                for ($h = $inicio_h; $h <= $fin_h; $h++) {
+                    $horas_disponibles[] = sprintf('%02d:00', $h);
+                    if ($h < $fin_h) {
+                        $horas_disponibles[] = sprintf('%02d:30', $h);
+                    }
+                }
 
                 // Agrupar horarios por día
                 $horarios_por_dia = array_fill(0, 6, []);
+                $leyenda_materias = [];
                 foreach ($horarios as $horario) {
                     $dia = (int)$horario['dia'];
                     $hora_inicio = date('H:i', strtotime($horario['hora_inicio']));
@@ -844,90 +868,79 @@ include("includes/head.php");
                     }
                 }
 
-                $celdas_ocupadas = array_fill(0, count($dias_semana), array_fill(0, count($horas_disponibles), false));
+                $skip_cells = [];
                 ?>
 
                 <style>
                     .horario-cell {
-                        min-height: 80px;
-                        border: 1px solid #ddd;
-                        padding: 5px;
+                        border: 1px solid #dee2e6;
+                        padding: 6px;
                         cursor: default;
                         position: relative;
                         text-align: center;
                         vertical-align: middle;
                         box-sizing: border-box;
-                        overflow: hidden;
                         word-break: break-word;
-                        white-space: normal;
-                        min-height: 60px;
                     }
-                    .horario-cell:hover { background-color: #f5f5f5; }
-                    .bg-asignada { background-color: #d4edda; font-weight: bold; }
-                    .bg-asignada:hover { background-color: #c3e6cb !important; }
-                    .bg-conflicto { background-color: #f8d7da !important; }
-                    .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,.1); border-radius: 50%; border-top-color: #007bff; animation: spin 1s ease-in-out infinite; margin-right: 10px; }
-                    @keyframes spin { to { transform: rotate(360deg); } }
-                    small { font-size: 0.8em; color: #666; }
+                    .horario-cell:hover { background-color: #f8f9fa; }
+                    .bg-asignada { background-color: #e8f4fd !important; border-left: 4px solid #0b5ed7 !important; }
+                    .bg-asignada:hover { background-color: #d8ecfc !important; }
+                    small { font-size: 0.82em; }
                     table.table { table-layout: fixed; width: 100%; }
-                    td[title] { max-width: 1px; }
                 </style>
 
                 <div class="table-responsive mb-4">
                     <table class="table table-bordered table-hover">
                         <thead class="thead-dark">
                             <tr>
-                                <th>Hora</th>
+                                <th style="width: 125px;" class="text-center">Hora (30 min)</th>
                                 <?php foreach ($dias_semana as $dia): ?>
-                                    <th><?= $dia ?></th>
+                                    <th class="text-center"><?= $dia ?></th>
                                 <?php endforeach; ?>
                             </tr>
                         </thead>
                         <tbody>
-                        <?php foreach ($horas_disponibles as $hora_index => $hora): ?>
+                        <?php foreach ($horas_disponibles as $hora): 
+                            $hora_fin_slot = date('H:i', strtotime($hora) + 1800);
+                        ?>
                             <tr>
-                                <td><?= $hora ?></td>
-                                <?php foreach ($dias_semana as $dia_index => $dia_nombre): ?>
+                                <th class="bg-light align-middle text-muted small text-center"><?= $hora ?> - <?= $hora_fin_slot ?></th>
+                                <?php for ($dia_index = 0; $dia_index <= 5; $dia_index++): ?>
                                     <?php
-                                    if (isset($celdas_ocupadas[$dia_index][$hora_index]) && $celdas_ocupadas[$dia_index][$hora_index]) {
-                                        // celda cubierta por rowspan anterior
-                                        echo '';
+                                    if (isset($skip_cells[$dia_index][$hora])) {
                                         continue;
                                     }
 
-                                    $celdaContent = '';
-                                    $clasesCelda = 'horario-cell';
-                                    $rowspan = 1;
-
-                                    // Buscar horario que empiece exactamente en esta hora
+                                    $clase_encontrada = null;
                                     foreach ($horarios_por_dia[$dia_index] as $asig) {
-                                        if ($asig['hora_inicio'] == $hora) {
-                                            $celdaContent = '<strong>' . htmlspecialchars($asig['nombre_materia']) . '</strong><br><small>' . htmlspecialchars($asig['nombre_docente']) . ' | ' . htmlspecialchars($asig['aula']) . '</small>';
-
-                                            $hora_fin = $asig['hora_fin'];
-                                            $start_ts = strtotime($hora);
-                                            $end_ts = strtotime($hora_fin);
-                                            if ($end_ts <= $start_ts) {
-                                                $rowspan = 1;
-                                            } else {
-                                                $hours = ($end_ts - $start_ts) / 3600;
-                                                $rowspan = max(1, (int) ceil($hours));
-                                                $max_index = count($horas_disponibles);
-                                                for ($i = $hora_index; $i < min($max_index, $hora_index + $rowspan); $i++) {
-                                                    $celdas_ocupadas[$dia_index][$i] = true;
-                                                }
-                                            }
-
-                                            $clasesCelda .= ' bg-asignada';
+                                        if ($hora >= $asig['hora_inicio'] && $hora < $asig['hora_fin']) {
+                                            $clase_encontrada = $asig;
                                             break;
                                         }
                                     }
 
-                                    echo '<td class="' . $clasesCelda . '"';
-                                    if ($rowspan > 1) echo ' rowspan="' . $rowspan . '"';
-                                    echo '>' . $celdaContent . '</td>';
+                                    if ($clase_encontrada):
+                                        $h_ini_ts = strtotime($hora);
+                                        $h_fin_ts = strtotime($clase_encontrada['hora_fin']);
+                                        $rowspan = max(1, (int) round(($h_fin_ts - $h_ini_ts) / 1800));
+                                        
+                                        $temp_ts = $h_ini_ts;
+                                        for ($i = 1; $i < $rowspan; $i++) {
+                                            $temp_ts += 1800;
+                                            $skip_cells[$dia_index][date('H:i', $temp_ts)] = true;
+                                        }
                                     ?>
-                                <?php endforeach; ?>
+                                        <td class="horario-cell bg-asignada align-middle" rowspan="<?= $rowspan ?>">
+                                            <div class="p-1">
+                                                <strong class="text-primary d-block mb-1"><?= htmlspecialchars($clase_encontrada['nombre_materia']) ?></strong>
+                                                <small class="text-dark d-block mb-1"><i class="fas fa-chalkboard-teacher mr-1"></i><?= htmlspecialchars($clase_encontrada['nombre_docente']) ?></small>
+                                                <span class="badge badge-light border text-muted"><i class="fas fa-map-marker-alt mr-1"></i>Aula: <?= htmlspecialchars($clase_encontrada['aula']) ?></span>
+                                            </div>
+                                        </td>
+                                    <?php else: ?>
+                                        <td class="horario-cell text-muted small"></td>
+                                    <?php endif; ?>
+                                <?php endfor; ?>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>

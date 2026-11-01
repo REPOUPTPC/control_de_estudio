@@ -300,6 +300,11 @@ $admin_url = $base_url . '/admin';
                             <i class="fas fa-file-alt fa-fw"></i> Admisión y Control
                         </a>
                         <?php endif; ?>
+
+                        <!-- Asignación de Voceros -->
+                        <a title="Asignación de Voceros Estudiantiles" class="dropdown-item" href="<?= $admin_url ?>/asignacion_voceros.php">
+                            <i class="fas fa-bullhorn fa-fw text-warning"></i> Asignación de Voceros
+                        </a>
                     </div>
                 </li>
 
@@ -364,7 +369,10 @@ $admin_url = $base_url . '/admin';
 
                         <?php if (tienePermiso('horarios')): ?>
                         <a title="Horarios Docentes" class="dropdown-item" href="<?= $admin_url ?>/horarios_docentes.php">
-                            <i class="fas fa-calendar-alt fa-fw"></i> Horarios
+                            <i class="fas fa-calendar-alt fa-fw"></i> Horarios por Docente
+                        </a>
+                        <a title="Horarios de Secciones" class="dropdown-item" href="<?= $admin_url ?>/gestion_horario_seccion.php">
+                            <i class="fas fa-calendar-check fa-fw"></i> Horarios de Secciones
                         </a>
                         <?php endif; ?>
 
@@ -390,6 +398,11 @@ $admin_url = $base_url . '/admin';
                             </a>
                         <?php endif; ?>
 
+                        <!-- Seguimiento Institucional de Notas -->
+                        <a title="Control y Seguimiento de Notas de Profesores" class="dropdown-item" href="<?= $admin_url ?>/seguimiento_notas.php">
+                            <i class="fas fa-clipboard-check fa-fw text-info"></i> Seguimiento de Notas
+                        </a>
+
                         <?php if (tienePermiso('consultar_notas')): ?>
                             <a title="Consultar Notas" class="dropdown-item" href="<?= $admin_url ?>/consulta_notas.php">
                                 <i class="fas fa-search fa-fw"></i> Consultar Notas
@@ -406,8 +419,14 @@ $admin_url = $base_url . '/admin';
                         <a title="Corrección de Notas" class="dropdown-item" href="<?= $admin_url ?>/correccion_notas.php">
                             <i class="fas fa-pencil-alt fa-fw"></i> Corrección de Notas
                         </a>
+
+                        <a title="Amonestaciones Docentes" class="dropdown-item" href="<?= $admin_url ?>/amonestaciones_docentes.php">
+                            <i class="fas fa-exclamation-triangle fa-fw text-danger"></i> Amonestaciones Docentes
+                        </a>
                     </div>
                 </li>
+
+                
 
                 <!-- DROPDOWN: Ajustes -->
                 <li class="nav-item dropdown">

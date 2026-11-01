@@ -91,9 +91,12 @@ include(__DIR__ . '/../includes/head.php');
     <div class="row mb-2 no-print">
         <div class="col-12 d-flex justify-content-between">
             <h2 class="h4 mb-0">Horario Semanal - <?= $seccion['codigo_seccion'] ?></h2>
-            <div>
+            <div class="d-flex align-items-center">
                 <button onclick="window.print();" class="btn btn-success btn-sm mr-1">Imprimir</button>
-                <a href="ver_seccion.php?id=<?= $id_seccion ?>" class="btn btn-secondary btn-sm">← Volver</a>
+                <form method="POST" action="ver_seccion.php" class="d-inline m-0">
+                    <input type="hidden" name="id" value="<?= $id_seccion ?>">
+                    <button type="submit" class="btn btn-secondary btn-sm">← Volver</button>
+                </form>
             </div>
         </div>
     </div>

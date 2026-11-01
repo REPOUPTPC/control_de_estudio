@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['guardar'])) {
         }
         
         if ($actualizaciones_exitosas > 0) {
+            cargarPermisosUsuario();
             $_SESSION['msg'] = "Permisos actualizados correctamente para los usuarios";
         } else {
             $_SESSION['msg'] = "Error al actualizar los permisos";

@@ -79,10 +79,12 @@ if ($estudiante && !empty($estudiante['id'])) {
     $estudiante['trayecto_n'] = $infoTrayecto['numero_trayecto'];
     $estudiante['trayecto_nombre'] = $infoTrayecto['nombre_trayecto'];
 
-    // Evaluación de aptitud para Intensivo, Evaluación Extraordinaria y Pasantías/Proyecto
+    // Evaluación de aptitud para Intensivo, Evaluación Extraordinaria, Pasantías/Proyecto y Adición/Retiro
     $es_apto_intensivo = esAptoParaIntensivo($estudiante['id']);
     $es_apto_extraordinario = esAptoParaExtraordinario($estudiante['id']);
     $es_apto_pasantias = esAptoParaPasantias($estudiante['id']);
+    $eval_adicion_retiro = function_exists('verificarElegibilidadAdicionRetiro') ? verificarElegibilidadAdicionRetiro($estudiante['id']) : ['es_apto' => false, 'carrera_valida' => false, 'lapso_valido' => false, 'motivo' => ''];
+    $es_apto_adicion_retiro = !empty($eval_adicion_retiro['es_apto']);
     
     // PROCESAR CREACIÓN DE SOLICITUDES VÍA POST
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action_solicitud'])) {
@@ -91,10 +93,17 @@ if ($estudiante && !empty($estudiante['id'])) {
         } else {
             $action = trim($_POST['action_solicitud']);
             
-                        // =========================================================
+            // =========================================================
             // MANEJADORES DE TODAS LAS SOLICITUDES ACADÉMICAS
             // =========================================================
             if ($action === 'adicion_retiro') {
+                $eval_ar = function_exists('verificarElegibilidadAdicionRetiro') ? verificarElegibilidadAdicionRetiro($estudiante_id) : ['es_apto' => false, 'motivo' => 'Función no disponible'];
+                if (!$eval_ar['es_apto']) {
+                    $_SESSION['flash_solicitud'] = ['error' => $eval_ar['motivo']];
+                    header("Location: mis_constancias.php");
+                    exit();
+                }
+
                 $motivo = mb_substr(trim($_POST['motivo'] ?? ''), 0, 100);
                 $retiros_ids = isset($_POST['retiros']) && is_array($_POST['retiros']) ? array_map('intval', $_POST['retiros']) : [];
                 $adiciones_ids = isset($_POST['adiciones']) && is_array($_POST['adiciones']) ? array_map('intval', $_POST['adiciones']) : [];
@@ -401,7 +410,7 @@ if ($estudiante && !empty($estudiante['id'])) {
                     $nueva_sol_id = crearSolicitudAcademica($estudiante_id, 'constancia_reincorporacion', 'reincorporacion', $motivo, $materias_data);
                     if ($nueva_sol_id) {
                         $_SESSION['flash_solicitud'] = [
-                            'exito' => "¡Solicitud de Reincorporación registrada con el N° #$nueva_sol_id!",
+                            'exito' => "¡Solicitud de Reincorporación registrada con el N° #$nueva_sol_id! Recuerde que debe llevar a Control de Estudios: copia de cédula, el comprobante del arancel y dos (2) reportes impresos de esta solicitud de reincorporación.",
                             'pdf_id' => $nueva_sol_id
                         ];
                     } else {
@@ -720,21 +729,41 @@ include("includes/head.php");
                                     <!-- Adición/Retiro de Materias (CON MODAL Y REGISTRO AUTOMATIZADO) -->
                                     <div class="col-lg-6 mb-3">
                                         <div class="card h-100 border-info">
-                                            <div class="card-header bg-info-light bg-white py-2">
+                                            <div class="card-header bg-info-light bg-white py-2 d-flex justify-content-between align-items-center">
                                                 <h6 class="font-weight-bold text-info mb-0 text-uppercase">
                                                     <i class="fas fa-exchange-alt mr-1"></i> ADICIÓN / RETIRO
                                                 </h6>
+                                                <?php if ($es_apto_adicion_retiro): ?>
+                                                    <span class="badge badge-success">DISPONIBLE (<?= $eval_adicion_retiro['dias_restantes'] ?> DÍAS)</span>
+                                                <?php elseif (!empty($eval_adicion_retiro['carrera_valida'])): ?>
+                                                    <span class="badge badge-warning text-dark">LAPSO CERRADO</span>
+                                                <?php else: ?>
+                                                    <span class="badge badge-secondary">NO APLICA</span>
+                                                <?php endif; ?>
                                             </div>
                                             <div class="card-body py-2">
                                                 <p class="small text-muted mb-2 text-uppercase">
                                                     SOLICITUD INTERACTIVA PARA ADICIONAR O RETIRAR MATERIAS DEL PERÍODO.
                                                 </p>
+                                                <?php if (!$es_apto_adicion_retiro): ?>
+                                                    <div class="alert alert-warning p-2 mb-0 text-uppercase font-weight-bold small">
+                                                        <i class="fas fa-exclamation-triangle mr-1"></i> 
+                                                        <?php echo htmlspecialchars($eval_adicion_retiro['motivo']); ?>
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                             <div class="card-footer bg-white border-0 pb-3">
-                                                <button type="button" class="btn btn-info btn-block font-weight-bold text-uppercase shadow-sm" 
-                                                        data-toggle="modal" data-target="#modalSolicitudAdicionRetiro">
-                                                    <i class="fas fa-edit mr-1"></i> SOLICITAR Y DESCARGAR PDF
-                                                </button>
+                                                <?php if ($es_apto_adicion_retiro): ?>
+                                                    <button type="button" class="btn btn-info btn-block font-weight-bold text-uppercase shadow-sm" 
+                                                            data-toggle="modal" data-target="#modalSolicitudAdicionRetiro">
+                                                        <i class="fas fa-edit mr-1"></i> SOLICITAR Y DESCARGAR PDF
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn btn-info btn-block font-weight-bold text-uppercase" 
+                                                            data-toggle="modal" data-target="#modalNoAptoAdicionRetiro">
+                                                        <i class="fas fa-info-circle mr-1"></i> VER REQUISITOS
+                                                    </button>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -1632,8 +1661,19 @@ include("includes/head.php");
                                 </div>
                                 
                                 <div class="modal-body">
+                                    <div class="alert alert-warning py-2 small mb-3 border-warning">
+                                        <div class="font-weight-bold text-dark mb-1">
+                                            <i class="fas fa-exclamation-circle text-danger mr-1"></i> <strong>REQUISITOS OBLIGATORIOS A CONSIGNAR EN CONTROL DE ESTUDIOS:</strong>
+                                        </div>
+                                        <p class="mb-1 text-dark">Para formalizar su reincorporación debe acudir al Departamento de Control de Estudios con:</p>
+                                        <ul class="pl-3 mb-0 text-dark">
+                                            <li><strong>Copia legible de la Cédula de Identidad</strong>.</li>
+                                            <li><strong>Comprobante de pago del arancel correspondiente</strong>.</li>
+                                            <li><strong>Dos (2) reportes impresos de esta solicitud de reincorporación</strong> (generados al presionar el botón inferior).</li>
+                                        </ul>
+                                    </div>
                                     <div class="alert alert-info py-2 small mb-3">
-                                        <i class="fas fa-calendar-check mr-1"></i> Período de reincorporación: <strong class="text-uppercase"><?php echo htmlspecialchars($periodo_activo_nombre ?? 'Período Activo'); ?></strong> (Período Académico Activo en el Sistema).
+                                        <i class="fas fa-calendar-check mr-1"></i> Período solicitado inicial: <strong class="text-uppercase"><?php echo htmlspecialchars($periodo_activo_nombre ?? 'Período Activo'); ?></strong>. Control de Estudios evaluará sus requisitos académicos y determinará el período, trayecto y sección correspondiente.
                                     </div>
                                     <div class="form-group mb-0">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -1821,6 +1861,42 @@ include("includes/head.php");
                 </div>
             </div>
 
+            <!-- Modal para Estudiante No Apto para Adición y Retiro -->
+            <div class="modal fade" id="modalNoAptoAdicionRetiro" tabindex="-1" role="dialog" aria-labelledby="modalNoAptoAdicionRetiroLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content border-info shadow">
+                        <div class="modal-header bg-info text-white justify-content-center position-relative">
+                            <h5 class="modal-title font-weight-bold text-uppercase text-center" id="modalNoAptoAdicionRetiroLabel">
+                                <i class="fas fa-info-circle mr-2"></i> ADICIÓN Y RETIRO DE MATERIAS
+                            </h5>
+                            <button type="button" class="close text-white position-absolute" style="right: 15px; top: 15px;" data-dismiss="modal" aria-label="Cerrar">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="fas fa-exchange-alt text-info" style="font-size: 3.5rem;"></i>
+                            </div>
+                            <h5 class="font-weight-bold text-dark text-uppercase mb-3 text-center">NORMATIVA INSTITUCIONAL</h5>
+                            <div class="alert alert-warning text-uppercase small font-weight-bold text-center mb-3">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                <?php echo htmlspecialchars($eval_adicion_retiro['motivo'] ?? 'Trámite no disponible.'); ?>
+                            </div>
+                            <div class="text-muted text-left small mb-0 font-weight-bold">
+                                <p class="mb-1"><i class="fas fa-check-circle text-success mr-1"></i> <strong>Carreras Autorizadas:</strong> Únicamente Mecánica Automotriz y Mecánica Térmica.</p>
+                                <p class="mb-1"><i class="fas fa-clock text-primary mr-1"></i> <strong>Lapso Reglamentario:</strong> Exclusivamente durante las 2 primeras semanas de cada período académico.</p>
+                                <p class="mb-0"><i class="fas fa-university text-secondary mr-1"></i> Para solicitudes excepcionales o casos especiales, debe dirigirse a la Dirección de Carrera o Control de Estudios.</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light justify-content-center">
+                            <button type="button" class="btn btn-secondary font-weight-bold text-uppercase px-4 shadow-sm" data-dismiss="modal">
+                                <i class="fas fa-times mr-1"></i> ENTENDIDO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 
 
 <style>
@@ -1972,6 +2048,20 @@ document.addEventListener('DOMContentLoaded', function() {
     <?php if (!empty($solicitud_pdf_popup_id) && $solicitud_pdf_popup_id > 0): ?>
         var urlAuto = '../constancias/generar_constancia.php?solicitud_id=<?php echo $solicitud_pdf_popup_id; ?>';
         abrirModalPDF(urlAuto, 'COMPROBANTE DE TRÁMITE #<?php echo $solicitud_pdf_popup_id; ?>');
+    <?php endif; ?>
+
+    // 4. Apertura directa desde enlaces (ej. desde Mi Historial de Notas)
+    <?php if (isset($_GET['solicitud']) && $_GET['solicitud'] === 'adicion_retiro'): ?>
+        <?php if (!empty($es_apto_adicion_retiro)): ?>
+            <?php if (isset($_GET['retirar_materia']) && intval($_GET['retirar_materia']) > 0): ?>
+                var matId = '<?= intval($_GET['retirar_materia']) ?>';
+                var chkRet = document.getElementById('ret_' + matId);
+                if (chkRet) chkRet.checked = true;
+            <?php endif; ?>
+            $('#modalSolicitudAdicionRetiro').modal('show');
+        <?php else: ?>
+            $('#modalNoAptoAdicionRetiro').modal('show');
+        <?php endif; ?>
     <?php endif; ?>
 });
 </script>

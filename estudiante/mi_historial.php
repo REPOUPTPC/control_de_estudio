@@ -158,7 +158,7 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
     }
     
     // Consultar notas definitivas
-    $query_nd = "SELECT nd.*, m.trayecto, pa.nombre_periodo 
+    $query_nd = "SELECT nd.*, m.trayecto, m.nota_minima_aprobatoria, pa.nombre_periodo 
                  FROM notas_definitivas nd
                  INNER JOIN materias m ON nd.id_materia = m.id_materia
                  LEFT JOIN periodos_academicos pa ON nd.id_periodo = pa.id_periodo
@@ -171,7 +171,10 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
         $materia_id = intval($row_nd['id_materia']);
         $tray = intval($row_nd['trayecto']);
         $col = "trayecto_" . $tray;
-        $nota_def = isset($row_nd[$col]) && $row_nd[$col] !== null ? floatval($row_nd[$col]) : null;
+        $nota_def = isset($row_nd['nota_final']) && $row_nd['nota_final'] !== null 
+            ? floatval($row_nd['nota_final']) 
+            : (isset($row_nd[$col]) && $row_nd[$col] !== null ? floatval($row_nd[$col]) : null);
+        $min_aprob = isset($row_nd['nota_minima_aprobatoria']) ? floatval($row_nd['nota_minima_aprobatoria']) : 12.0;
         
         if (!isset($notas[$materia_id])) {
             $notas[$materia_id] = [
@@ -182,10 +185,11 @@ function obtenerNotasEstudianteTrimestres($estudiante_id) {
                 'nombre_periodo' => $row_nd['nombre_periodo'] ?? '',
                 'fecha_registro' => $row_nd['fecha_registro'] ?? '',
                 'nombre_admin' => 'Control de Estudios',
-                'estado' => ($nota_def !== null ? ($nota_def >= 12 ? 'aprobada' : 'reprobada') : 'en_curso')
+                'estado' => ($nota_def !== null ? ($nota_def >= $min_aprob ? 'aprobada' : 'reprobada') : 'en_curso')
             ];
         } elseif ($notas[$materia_id]['nota_final'] === null && $nota_def !== null) {
             $notas[$materia_id]['nota_final'] = $nota_def;
+            $notas[$materia_id]['estado'] = ($nota_def >= $min_aprob ? 'aprobada' : 'reprobada');
         }
     }
     $stmt_nd->close();
@@ -246,6 +250,11 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
     $puede_ver_ingenieria = tieneNotasEnTrayectos($materias_carrera, $notas_estudiante, [3, 4]);
     $puede_ver_completo = tieneNotasEnTrayectos($materias_carrera, $notas_estudiante, [0, 1, 2, 3, 4]);
 }
+
+// Evaluación institucional: Adición y Retiro (Únicamente Automotriz y Térmica, primeras 2 semanas)
+$eval_adicion_retiro = ($estudiante && isset($estudiante['id']) && function_exists('verificarElegibilidadAdicionRetiro')) 
+    ? verificarElegibilidadAdicionRetiro($estudiante['id']) 
+    : ['es_apto' => false, 'carrera_valida' => false, 'lapso_valido' => false, 'motivo' => ''];
 ?>
 
 <div class="container-fluid px-2 px-sm-3 px-md-4">
@@ -316,10 +325,63 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
         </div>
     </div>
     
+    <!-- Panel de Regulación Institucional: Adición y Retiro de Materias -->
+    <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+        <div class="card mb-4 border-info shadow-sm">
+            <div class="card-header bg-info text-white d-flex flex-column flex-sm-row justify-content-between align-items-center py-2">
+                <h6 class="mb-1 mb-sm-0 font-weight-bold text-uppercase">
+                    <i class="fas fa-exchange-alt mr-1"></i> Período de Adición y Retiro Habilitado
+                </h6>
+                <span class="badge badge-light text-info font-weight-bold">
+                    <i class="fas fa-clock mr-1"></i> Quedan <?= $eval_adicion_retiro['dias_restantes'] ?> días
+                </span>
+            </div>
+            <div class="card-body py-3">
+                <div class="row align-items-center">
+                    <div class="col-md-8 mb-2 mb-md-0">
+                        <p class="mb-1 text-dark">
+                            Tu carrera (<strong><?= htmlspecialchars($carrera['nombre_carrera']) ?></strong>) tiene habilitado el proceso de <strong>Adición y Retiro de Asignaturas</strong> durante las 2 primeras semanas del período <strong><?= htmlspecialchars($eval_adicion_retiro['periodo_nombre']) ?></strong>.
+                        </p>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-alt mr-1 text-primary"></i> Período hábil: del <strong><?= $eval_adicion_retiro['fecha_inicio'] ?></strong> hasta el <strong><?= $eval_adicion_retiro['fecha_limite'] ?></strong>.
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-md-right">
+                        <a href="mis_constancias.php?solicitud=adicion_retiro" class="btn btn-info font-weight-bold shadow-sm">
+                            <i class="fas fa-edit mr-1"></i> Solicitar Adición / Retiro
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php elseif (!empty($eval_adicion_retiro['carrera_valida']) && empty($eval_adicion_retiro['lapso_valido'])): ?>
+        <div class="alert alert-secondary border mb-4 shadow-sm py-2 px-3">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-history text-secondary fa-2x mr-3"></i>
+                <div>
+                    <strong class="text-dark">Lapso de Adición y Retiro Finalizado</strong>
+                    <p class="mb-0 small text-muted">
+                        El proceso de Adición y Retiro para tu carrera (<strong><?= htmlspecialchars($carrera['nombre_carrera']) ?></strong>) estuvo activo durante las 2 primeras semanas del período y culminó el <strong><?= $eval_adicion_retiro['fecha_limite'] ?? 'lapso límite' ?></strong>. Si requieres gestionar un trámite extemporáneo, debes acudir a Control de Estudios.
+                    </p>
+                </div>
+            </div>
+        </div>
+    <?php else: ?>
+        <div class="alert alert-light border mb-4 py-2 px-3 small text-muted shadow-sm">
+            <i class="fas fa-info-circle text-info mr-1"></i> 
+            <strong>Normativa Institucional:</strong> El proceso de <strong>Adición y Retiro / Retiro</strong> de asignaturas es <strong>únicamente para las carreras Mecánica Automotriz y Mecánica Térmica</strong>, y solo durante las <strong>2 primeras semanas</strong> de cada período académico.
+        </div>
+    <?php endif; ?>
+
     <?php if ($materias_carrera && $materias_carrera->num_rows > 0): ?>
     <div class="card shadow mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0">Materias Inscritas y Notas por Trimestre</h5>
+        <div class="card-header bg-success text-white d-flex flex-column flex-sm-row justify-content-between align-items-center">
+            <h5 class="mb-1 mb-sm-0">Materias Inscritas y Notas por Trimestre</h5>
+            <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                <a href="mis_constancias.php?solicitud=adicion_retiro" class="btn btn-warning btn-sm font-weight-bold text-dark shadow-sm">
+                    <i class="fas fa-exchange-alt mr-1"></i> Adición / Retiro (Quedan <?= $eval_adicion_retiro['dias_restantes'] ?> días)
+                </a>
+            <?php endif; ?>
         </div>
         <div class="card-body p-2 p-sm-3">
             <!-- Vista para escritorio -->
@@ -338,6 +400,9 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                             <th>Periodo</th>
                             <th>Fecha</th>
                             <th>Aprobado por</th>
+                            <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                                <th class="text-center" width="110">Acción</th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -394,7 +459,7 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                </div>
+                                </td>
                                 <td class="text-center">
                                     <?php if ($t2 !== null): ?>
                                         <span class="badge <?= $t2 >= 12 ? 'bg-success' : 'bg-danger' ?>">
@@ -403,7 +468,7 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                </div>
+                                </td>
                                 <td class="text-center">
                                     <?php if ($t3 !== null): ?>
                                         <span class="badge <?= $t3 >= 12 ? 'bg-success' : 'bg-danger' ?>">
@@ -412,7 +477,7 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                </div>
+                                </td>
                                 <td class="text-center">
                                     <?php if ($nota_final !== null): ?>
                                         <span class="badge <?= $nota_final >= 12 ? 'bg-success' : 'bg-danger' ?>">
@@ -421,13 +486,22 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
-                                </div>
+                                </td>
                                 <td class="text-center">
                                     <span class="badge badge-<?= $badge_estado ?>"><?= $estado ?></span>
-                                </div>
+                                </td>
                                 <td><?= $nota ? htmlspecialchars($nota['nombre_periodo']) : '-' ?></td>
                                 <td><?= $nota && $nota['fecha_registro'] ? date('d/m/Y', strtotime($nota['fecha_registro'])) : '-' ?></td>
                                 <td><?= $nota && !empty($nota['nombre_admin']) ? htmlspecialchars($nota['nombre_admin']) : '-' ?></td>
+                                <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                                    <td class="text-center">
+                                        <a href="mis_constancias.php?solicitud=adicion_retiro&retirar_materia=<?= $materia['id_materia'] ?>" 
+                                           class="btn btn-outline-danger btn-sm py-0 px-2 font-weight-bold" 
+                                           title="Solicitar retiro de esta asignatura">
+                                            <i class="fas fa-minus-circle mr-1"></i> Retirar
+                                        </a>
+                                    </td>
+                                <?php endif; ?>
                             </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -517,6 +591,15 @@ if ($estudiante && $carrera && $materias_carrera && $materias_carrera->num_rows 
                                 <div class="col-5 text-muted"><i class="fas fa-user-check"></i> Aprobado por:</div>
                                 <div class="col-7"><?= $nota && !empty($nota['nombre_admin']) ? htmlspecialchars($nota['nombre_admin']) : '-' ?></div>
                             </div>
+                            
+                            <?php if (!empty($eval_adicion_retiro['es_apto'])): ?>
+                                <div class="mt-2 pt-2 border-top text-right">
+                                    <a href="mis_constancias.php?solicitud=adicion_retiro&retirar_materia=<?= $materia['id_materia'] ?>" 
+                                       class="btn btn-outline-danger btn-sm py-1 px-2 font-weight-bold">
+                                        <i class="fas fa-minus-circle mr-1"></i> Retirar Asignatura
+                                    </a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endwhile; ?>

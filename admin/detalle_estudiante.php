@@ -1,11 +1,15 @@
 <?php
-require_once('../funciones/functions.php');
+require_once(__DIR__ . '/../funciones/functions.php');
 
 // Verificar ID
-$id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+$id = filter_var($_POST['id'] ?? ($_GET['id'] ?? null), FILTER_VALIDATE_INT);
 if (!$id) {
     die('<div class="alert alert-danger">ID de estudiante no válido</div>');
 }
+
+$raw_admin_prefix = $_POST['admin_prefix'] ?? ($_GET['admin_prefix'] ?? '');
+$admin_prefix = ($raw_admin_prefix === '../') ? '../' : '';
+$root_prefix = $admin_prefix ? '../..' : '..';
 
 // Obtener datos
 $estudiante = obtenerEstudiantePorId($id);
@@ -118,15 +122,15 @@ $fotoPerfil = '';
 $tieneFoto = false;
 
 if (!empty($estudiante['foto_perfil'])) {
-    $rutaFoto = '../foto_perfil/' . $estudiante['foto_perfil'];
+    $rutaFoto = __DIR__ . '/../foto_perfil/' . $estudiante['foto_perfil'];
     if (file_exists($rutaFoto) && is_file($rutaFoto)) {
-        $fotoPerfil = $rutaFoto;
+        $fotoPerfil = $root_prefix . '/foto_perfil/' . $estudiante['foto_perfil'];
         $tieneFoto = true;
     }
 }
 
 $fotoPerfil = $tieneFoto 
-    ? '../foto_perfil/' . $estudiante['foto_perfil'] 
+    ? ($root_prefix . '/foto_perfil/' . $estudiante['foto_perfil']) 
     : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='40' r='20' fill='%236c757d'/%3E%3Ccircle cx='50' cy='100' r='40' fill='%236c757d'/%3E%3Ctext x='50' y='45' text-anchor='middle' fill='white' font-family='Arial' font-size='14'%3EUSER%3C/text%3E%3C/svg%3E";
 
 // Obtener solicitudes académicas del estudiante
@@ -179,7 +183,7 @@ $cant_pendientes = count($solicitudes_pendientes);
                         </p>
                     </div>
                     <div>
-                        <form method="POST" action="consulta_notas.php" class="d-inline m-0">
+                        <form method="POST" action="<?= $admin_prefix ?>consulta_notas.php" class="d-inline m-0">
                             <input type="hidden" name="cedula" value="<?= htmlspecialchars($estudiante['idusuario'] ?? '') ?>">
                             <button type="submit" class="btn btn-info btn-sm font-weight-bold shadow-sm" title="Ver historial académico">
                                 <i class="fas fa-book-open me-1"></i> Historial Académico
@@ -196,7 +200,7 @@ $cant_pendientes = count($solicitudes_pendientes);
                     <i class="fas fa-exclamation-circle text-warning me-2"></i>
                     <strong>¡Atención!</strong> Este estudiante tiene <strong><?= $cant_pendientes ?></strong> solicitud(es) académica(s) pendiente(s) por revisión.
                 </div>
-                <form method="POST" action="constancias.php" class="d-inline m-0">
+                <form method="POST" action="<?= $admin_prefix ?>constancias.php" class="d-inline m-0">
                     <input type="hidden" name="id_estudiante" value="<?= $id ?>">
                     <input type="hidden" name="tab" value="solicitudes">
                     <button type="submit" class="btn btn-sm btn-warning text-dark font-weight-bold shadow-sm">
@@ -560,14 +564,14 @@ $cant_pendientes = count($solicitudes_pendientes);
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <form method="POST" action="constancias.php" class="d-inline m-0">
+                                                    <form method="POST" action="<?= $admin_prefix ?>constancias.php" class="d-inline m-0">
                                                         <input type="hidden" name="id_estudiante" value="<?= $id ?>">
                                                         <input type="hidden" name="tab" value="solicitudes">
                                                         <button type="submit" class="btn btn-xs btn-outline-primary btn-sm py-0 px-2 font-weight-bold" title="Gestionar en Solicitudes">
                                                             <i class="fas fa-tasks me-1"></i> Gestionar
                                                         </button>
                                                     </form>
-                                                    <form method="POST" action="../constancias/generar_constancia.php" target="_blank" class="d-inline">
+                                                    <form method="POST" action="<?= $root_prefix ?>/constancias/generar_constancia.php" target="_blank" class="d-inline">
                                                         <input type="hidden" name="solicitud_id" value="<?= $se['id'] ?>">
                                                         <button type="submit" class="btn btn-xs btn-outline-danger btn-sm py-0 px-2" title="Ver PDF">
                                                             <i class="fas fa-file-pdf"></i>

@@ -16,6 +16,27 @@ $resultado = retirarEstudiante($db, $seccion_id, $usuario_id);
 if ($resultado['success']) $_SESSION['success'] = $resultado['message'];
 else $_SESSION['error'] = $resultado['message'];
 
-header("Location: ver_seccion.php?id=".$seccion_id);
-exit();
+if ($seccion_id) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Redireccionando...</title>
+    </head>
+    <body>
+        <form id="redirectPost" method="POST" action="ver_seccion.php">
+            <input type="hidden" name="id" value="<?= $seccion_id ?>">
+        </form>
+        <script>
+            document.getElementById('redirectPost').submit();
+        </script>
+    </body>
+    </html>
+    <?php
+    exit();
+} else {
+    header("Location: gestion_seccion.php");
+    exit();
+}
 ?>

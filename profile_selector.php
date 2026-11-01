@@ -10,7 +10,15 @@ if (!isLoggedIn()) {
     exit();
 }
 
+// Recargar permisos desde la base de datos para asegurar estado real y actualizado
+cargarPermisosUsuario();
+
 $availableProfiles = getAvailableProfiles();
+
+// Si el perfil actual en sesión ya no está disponible, desarmarlo
+if (isset($_SESSION['current_profile']) && !in_array($_SESSION['current_profile'], $availableProfiles)) {
+    unset($_SESSION['current_profile']);
+}
 
 // Verifica que $availableProfiles es un array
 if (!is_array($availableProfiles)) {
