@@ -34,6 +34,7 @@ Documentación funcional ampliada: `DOCUMENTACION_SISTEMA.md` (no es necesario l
 | `sistema_viejo/pnfdiurno/` | Código PHP del **sistema viejo** (~880 archivos, nombres con espacios). Solo consulta. |
 | `sistemaviejo/pnfdiurno.sql` | **Dump del sistema viejo (79 MB, 491k líneas, 50 tablas).** NUNCA leer completo. |
 | `proyecto_tsu.sql` | Dump del sistema nuevo (1 MB, 11.5k líneas). |
+| `CONTROL_ESTUDIOS_VERCEL/` | Landing/Index estático "En construcción" para el despliegue preliminar en Vercel. |
 | `scratch/` | Scripts temporales de depuración. |
 
 ### Reglas para ahorrar tokens
@@ -61,6 +62,7 @@ Claves del viejo: `pensum` char(3) (ej. `GXC`), `cod_mat` char(5), `lapso` forma
 | 2026-08-31 | Revisión inicial de `pnfdiurno.sql` y `proyecto_tsu.sql` | Se confirmó que la IA puede leer los dumps directamente (no hace falta importarlos a MySQL). |
 | 2026-11-01 | Creado `AGENTS.md` | Contexto para IA. |
 | 2026-11-01 | Análisis de viabilidad Vercel/TS/Turso/R2 | Viable pero es una **reescritura** (~340 archivos PHP propios, ~131k líneas). Pendiente: decisión del usuario sobre framework y orden (migración de datos primero vs. replataforma). |
+| 2026-11-01 | Optimización landing Vercel (`CONTROL_ESTUDIOS_VERCEL/index.html`) | Rediseño responsivo en viewport 100vh sin scroll vertical para PC/laptops; proporciones y paddings ajustados con CSS clamp y barra de progreso animada. |
 
 ### Riesgos/pendientes detectados
 - Credenciales SMTP (contraseña de aplicación Gmail) **hardcodeadas** en `funciones/enviar_email.php` y `funciones/variables.php` → rotarlas y moverlas a variables de entorno.
