@@ -5,133 +5,182 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Sitio en construcción de Control de Estudios UPTPC" />
     <title>Control de Estudios UPTPC | Sitio en Construcción</title>
-    <link rel="icon" type="image/x-icon" href="img/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg" />
+    <link rel="alternate icon" href="favicon.ico" />
     <style>
       :root {
         --uptpc-blue: #0d4ea3;
         --uptpc-blue-dark: #082f6d;
         --uptpc-blue-soft: #edf4ff;
-        --uptpc-gray: #4a4a4a;
+        --uptpc-blue-light: #3b82f6;
+        --uptpc-gray: #4a5568;
+        --uptpc-gray-light: #718096;
       }
 
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
 
       html, body {
+        height: 100%;
         margin: 0;
-        min-height: 100%;
-        font-family: "Segoe UI", Arial, sans-serif;
-        background: #ffffff;
-        color: var(--uptpc-gray);
+        padding: 0;
       }
 
       body {
+        min-height: 100vh;
+        min-height: 100dvh;
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 100vh;
-        padding: 32px 18px;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background:
+          radial-gradient(circle at 15% 15%, rgba(13, 78, 163, 0.06) 0%, transparent 45%),
+          radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.07) 0%, transparent 45%),
+          #f3f6fc;
+        color: var(--uptpc-gray);
+        overflow: hidden; /* Evita scroll vertical en cualquier PC estándar */
+        padding: 16px;
       }
 
       .page-shell {
-        width: min(960px, 100%);
-        background: #fff;
-        border: 1px solid rgba(13, 78, 163, 0.1);
-        border-radius: 24px;
-        box-shadow: 0 20px 45px rgba(13, 78, 163, 0.08);
+        width: min(760px, 94vw);
+        max-height: 94vh;
+        background: #ffffff;
+        border: 1px solid rgba(13, 78, 163, 0.12);
+        border-radius: 20px;
+        box-shadow:
+          0 16px 40px -8px rgba(13, 78, 163, 0.1),
+          0 0 0 1px rgba(255, 255, 255, 0.8) inset;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
 
       .brand-row {
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 28px 24px 12px;
+        padding: clamp(14px, 2.4vh, 22px) 20px clamp(10px, 1.8vh, 16px);
         background: linear-gradient(180deg, #ffffff 0%, var(--uptpc-blue-soft) 100%);
+        border-bottom: 1px solid rgba(13, 78, 163, 0.08);
       }
 
       .main-logo {
-        width: min(200px, 75vw);
-        height: auto;
+        height: clamp(200px, 11vh, 98px);
+        width: auto;
+        max-width: 130px;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
         display: block;
+        filter: drop-shadow(0 4px 10px rgba(13, 78, 163, 0.1));
       }
 
       .hero {
         text-align: center;
-        padding: 18px 24px 28px;
+        padding: clamp(12px, 2.2vh, 22px) 24px clamp(14px, 2.5vh, 24px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
 
       .badge {
-        display: inline-block;
-        padding: 8px 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 14px;
         border-radius: 999px;
         background: rgba(13, 78, 163, 0.08);
         color: var(--uptpc-blue-dark);
         font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        font-size: 0.76rem;
+        font-size: 0.72rem;
+        border: 1px solid rgba(13, 78, 163, 0.14);
+      }
+
+      .badge-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--uptpc-blue);
+        box-shadow: 0 0 0 0 rgba(13, 78, 163, 0.5);
+        animation: pulse-ring 2s infinite;
+      }
+
+      @keyframes pulse-ring {
+        0% { box-shadow: 0 0 0 0 rgba(13, 78, 163, 0.55); }
+        70% { box-shadow: 0 0 0 7px rgba(13, 78, 163, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(13, 78, 163, 0); }
       }
 
       h1 {
-        margin: 18px 0 12px;
+        margin: clamp(10px, 1.6vh, 16px) 0 clamp(8px, 1.2vh, 12px);
         color: var(--uptpc-blue-dark);
-        font-size: clamp(2.2rem, 5vw, 3rem);
-        line-height: 1.1;
-        letter-spacing: 0.06em;
+        font-size: clamp(1.45rem, 2.7vw, 1.95rem);
+        line-height: 1.2;
+        letter-spacing: 0.04em;
+        font-weight: 800;
       }
 
       .hero p {
-        max-width: 620px;
+        max-width: 580px;
         margin: 0 auto;
-        font-size: 1.08rem;
-        line-height: 1.7;
+        font-size: clamp(0.88rem, 1.15vw, 0.98rem);
+        line-height: 1.55;
         color: var(--uptpc-gray);
       }
 
-      .status-dots {
-        margin-top: 22px;
-        display: flex;
-        justify-content: center;
-        gap: 12px;
+      .status-track {
+        width: 100%;
+        max-width: 200px;
+        height: 4px;
+        background: rgba(13, 78, 163, 0.12);
+        border-radius: 99px;
+        margin-top: clamp(12px, 2vh, 18px);
+        overflow: hidden;
+        position: relative;
       }
 
-      .status-dots span {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        background: rgba(13, 78, 163, 0.18);
-        display: inline-block;
-        animation: pulse 1.7s ease-in-out infinite;
+      .status-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 40%;
+        background: linear-gradient(90deg, var(--uptpc-blue), var(--uptpc-blue-light));
+        border-radius: 99px;
+        animation: progress-slide 2.2s ease-in-out infinite alternate;
       }
 
-      .status-dots span:nth-child(2) { animation-delay: 0.2s; }
-      .status-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-      @keyframes pulse {
-        0%, 100% { transform: scale(0.9); opacity: 0.45; }
-        50% { transform: scale(1.1); opacity: 1; }
+      @keyframes progress-slide {
+        0% { left: 0%; width: 25%; }
+        50% { width: 50%; }
+        100% { left: 75%; width: 25%; }
       }
 
       .site-footer {
-        background: #f7faff;
-        border-top: 1px solid rgba(13, 78, 163, 0.12);
-        padding: 22px 24px 28px;
+        background: #f8fbff;
+        border-top: 1px solid rgba(13, 78, 163, 0.09);
+        padding: clamp(10px, 1.8vh, 16px) 24px;
+        text-align: center;
       }
 
       .footer-brand {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
+        gap: 10px;
+        margin-bottom: 6px;
         color: var(--uptpc-blue-dark);
-        font-size: 0.98rem;
+        font-size: clamp(0.78rem, 1.1vw, 0.86rem);
+        font-weight: 500;
+        flex-wrap: wrap;
       }
 
       .footer-brand img {
-        width: 52px;
-        height: auto;
+        height: clamp(26px, 3.6vh, 32px);
+        width: auto;
         display: block;
       }
 
@@ -140,36 +189,37 @@
         color: var(--uptpc-blue);
         text-decoration: none;
         font-weight: 600;
+        transition: color 0.2s ease;
       }
 
       .footer-brand a:hover,
       .legal a:hover {
+        color: var(--uptpc-blue-dark);
         text-decoration: underline;
       }
 
       .legal {
         text-align: center;
-        color: var(--uptpc-gray);
-        font-size: 0.96rem;
-        line-height: 1.7;
+        color: var(--uptpc-gray-light);
+        font-size: clamp(0.7rem, 0.95vw, 0.76rem);
+        line-height: 1.45;
       }
 
       .legal p {
-        margin: 6px 0;
+        margin: 2px 0;
       }
 
-      @media (max-width: 600px) {
+      /* Respaldo para pantallas muy pequeñas o móviles en modo horizontal */
+      @media (max-height: 520px), (max-width: 480px) {
+        body {
+          overflow-y: auto;
+          height: auto;
+          min-height: 100vh;
+          padding: 12px;
+        }
+
         .page-shell {
-          border-radius: 16px;
-        }
-
-        .brand-row {
-          padding-top: 22px;
-        }
-
-        .site-footer {
-          padding-left: 16px;
-          padding-right: 16px;
+          max-height: none;
         }
       }
     </style>
@@ -181,13 +231,14 @@
       </header>
 
       <main class="hero">
-        <div class="badge">En desarrollo</div>
+        <div class="badge">
+          <span class="badge-dot" aria-hidden="true"></span>
+          <span>En desarrollo</span>
+        </div>
         <h1>SITIO EN CONSTRUCCIÓN</h1>
         <p>Estamos preparando una nueva experiencia digital para la comunidad universitaria. Pronto estaremos disponible con información, servicios y procesos académicos actualizados.</p>
-        <div class="status-dots" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
+        <div class="status-track" aria-hidden="true">
+          <div class="status-bar"></div>
         </div>
       </main>
 
